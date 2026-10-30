@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Ambiente virtual
+venv/
+env/
+.venv/
+ENV/
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.production
+
+# Banco de dados
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Uploads e arquivos gerados
+app/static/uploads/
+*.pdf
+
+# Dumps e backups — NUNCA versionar: contêm dados pessoais (CPF, endereço)
+backups/
+*.sql.gz
+*.dump
+
+# Relatórios e planilhas gerados na raiz (artefatos, não fonte)
+/relatorio_sistema.txt
+/teste_*.xlsx
+
+# Scripts temporários
+temp.py
+.claude/skills/
+app/static/uploads/

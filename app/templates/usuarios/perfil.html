@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block titulo %}Meu Perfil — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Meu Perfil{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/usuarios.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="form-card">
+  <p class="section-label">Dados da conta</p>
+  <div class="form-row col-2">
+    <div class="form-group">
+      <label>Nome</label>
+      <input type="text" value="{{ current_user.nome }}" disabled>
+    </div>
+    <div class="form-group">
+      <label>Login</label>
+      <input type="text" value="{{ current_user.login }}" disabled
+             style="font-family: monospace;">
+    </div>
+  </div>
+  <div class="form-row col-2">
+    <div class="form-group">
+      <label>Perfil de acesso</label>
+      <input type="text" value="{{ current_user.perfil.nome }}" disabled>
+    </div>
+    <div class="form-group">
+      <label>Último login</label>
+      <input type="text" disabled
+             value="{{ current_user.ultimo_login.strftime('%d/%m/%Y %H:%M') if current_user.ultimo_login else 'Nunca' }}">
+    </div>
+  </div>
+</div>
+
+<div class="form-card" style="margin-top:20px;">
+  <p class="section-label">Alterar senha</p>
+
+  {% if erro %}
+  <div class="alert alert-danger" style="margin-bottom:16px;">{{ erro }}</div>
+  {% endif %}
+  {% if sucesso %}
+  <div class="alert alert-success" style="margin-bottom:16px;">{{ sucesso }}</div>
+  {% endif %}
+
+  <form method="POST">
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group">
+        <label for="senha_atual">Senha atual</label>
+        <div class="senha-wrapper">
+          <input type="password" id="senha_atual" name="senha_atual"
+                 autocomplete="current-password" required>
+          <span class="toggle-senha" onclick="toggleSenha('senha_atual')"
+                title="Mostrar/ocultar">&#128065;</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row col-2">
+      <div class="form-group">
+        <label for="nova_senha">Nova senha</label>
+        <div class="senha-wrapper">
+          <input type="password" id="nova_senha" name="nova_senha"
+                 autocomplete="new-password"
+                 placeholder="Mínimo 6 caracteres, com 1 número"
+                 minlength="6" required
+                 onblur="validarNovaSenha()">
+          <span class="toggle-senha" onclick="toggleSenha('nova_senha')"
+                title="Mostrar/ocultar">&#128065;</span>
+        </div>
+        <div id="erro-nova-senha" style="display:none; font-size:0.78rem;
+             color:var(--cor-perigo); margin-top:4px; font-weight:600;"></div>
+      </div>
+      <div class="form-group">
+        <label for="confirmar_senha">Confirmar nova senha</label>
+        <div class="senha-wrapper">
+          <input type="password" id="confirmar_senha" name="confirmar_senha"
+                 autocomplete="new-password"
+                 placeholder="Repita a nova senha"
+                 required
+                 onblur="validarConfirmar()">
+          <span class="toggle-senha" onclick="toggleSenha('confirmar_senha')"
+                title="Mostrar/ocultar">&#128065;</span>
+        </div>
+        <div id="erro-confirmar" style="display:none; font-size:0.78rem;
+             color:var(--cor-perigo); margin-top:4px; font-weight:600;"></div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">&#10003; Salvar nova senha</button>
+      <a href="{{ url_for('main.dashboard') }}" class="btn btn-link">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSenha(id) {
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function validarNovaSenha() {
+  const val   = document.getElementById('nova_senha').value;
+  const erroEl = document.getElementById('erro-nova-senha');
+  if (!val) { erroEl.style.display = 'none'; return; }
+  const erros = [];
+  if (val.length < 6)   erros.push('Mínimo 6 caracteres');
+  if (!/\d/.test(val))  erros.push('Pelo menos 1 número');
+  erroEl.textContent = erros.join(' · ');
+  erroEl.style.display = erros.length ? 'block' : 'none';
+}
+
+function validarConfirmar() {
+  const nova      = document.getElementById('nova_senha').value;
+  const confirmar = document.getElementById('confirmar_senha').value;
+  const erroEl    = document.getElementById('erro-confirmar');
+  if (!confirmar) { erroEl.style.display = 'none'; return; }
+  const ok = nova === confirmar;
+  erroEl.textContent = ok ? '' : 'As senhas não coincidem';
+  erroEl.style.display = ok ? 'none' : 'block';
+}
+</script>
+{% endblock %}

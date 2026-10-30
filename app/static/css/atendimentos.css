@@ -1,0 +1,621 @@
+/* ── Lista / Toolbar ─────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;                /* garante que os filhos fiquem lado a lado */
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: nowrap;           /* impede quebra de linha */
+  overflow-x: auto;            /* rolagem horizontal se os itens não couberem */
+}
+
+/* Filtros movidos para .filtros-barra em components.css */
+
+/* ── Cabeçalho de data (agrupamento) ─────────────────────────────────── */
+.linha-data-grupo td {
+  border-bottom: none;
+}
+
+@media (max-width: 768px) {
+  .linha-data-grupo { display: block; }
+  .linha-data-grupo td {
+    display: block;
+    width: 100%;
+    font-size: 0.7rem;
+    padding: 8px 12px 4px;
+    border-radius: 0;
+    background: var(--bg-pagina) !important;
+    border-top: 2px solid var(--borda);
+  }
+}
+
+/* ── Botão tipo-rápido (toggle pill) ──────────────────────────────────── */
+.btn-tipo-rapido {
+  display: inline-block;
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1.5px solid var(--borda);
+  background: var(--bg-card);
+  color: var(--texto-principal);
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: var(--fonte);
+  transition: all 0.15s;
+  user-select: none;
+  cursor: pointer;
+}
+.btn-tipo-rapido:hover  { border-color: var(--cor-primaria); color: var(--cor-primaria); }
+.btn-tipo-rapido.ativo  {
+  background: var(--cor-primaria);
+  border-color: var(--cor-primaria);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Botões de serviço integrado ──────────────────────────────────────── */
+/* ── Botão de serviço unificado — duas zonas ───────────────────────────
+   Um item, dois alvos de clique independentes:
+     .servico-corpo  → <label> do checkbox: marca/desmarca. Nunca abre nada.
+     .servico-portal → botão irmão, FORA do label: abre o portal. Nunca marca.
+   O estado visual sai de :has(:checked) — sem JS de sincronia. */
+
+.servicos-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.servico-item {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--borda);
+  background: var(--bg-card);
+  overflow: hidden;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.servico-item:hover { border-color: var(--cor-primaria); }
+
+/* O checkbox é a fonte de verdade do POST — funcional, mas fora de vista.
+   Não usar display:none: quebraria o foco por teclado. */
+.servico-check {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.servico-corpo {
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--texto-principal);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+
+/* Estado marcado */
+.servico-item:has(.servico-check:checked) {
+  border-color: var(--cor-sucesso);
+  background: var(--cor-sucesso);
+}
+.servico-item:has(.servico-check:checked) .servico-corpo { color: #fff; }
+.servico-item:has(.servico-check:checked) .servico-corpo::after { content: ' ✓'; }
+
+/* Foco visível por teclado (WCAG AA) */
+.servico-item:has(.servico-check:focus-visible) {
+  outline: 2px solid var(--cor-acento);
+  outline-offset: 2px;
+}
+
+/* Zona do portal */
+.servico-portal {
+  border: none;
+  border-left: 1.5px solid var(--borda);
+  background: transparent;
+  color: var(--cor-info, #2563eb);
+  padding: 0 12px;
+  font-size: 1rem;
+  cursor: pointer;
+  font-family: var(--fonte);
+  transition: background 0.15s;
+}
+.servico-portal:hover { background: var(--cor-info-bg, #eff6ff); }
+
+/* Mesma zona do ícone, destino interno: abre o formulário de solicitação.
+   Cor da marca, e não a azul de "sai do sistema", justamente para não
+   prometer um portal externo. */
+.servico-solicitacao {
+  border: none;
+  border-left: 1.5px solid var(--borda);
+  background: transparent;
+  color: var(--cor-acento);
+  padding: 0 12px;
+  font-size: 1rem;
+  cursor: pointer;
+  font-family: var(--fonte);
+  transition: background 0.15s;
+}
+.servico-solicitacao:hover { background: var(--bg-pagina); }
+
+.servico-item:has(.servico-check:checked) .servico-solicitacao {
+  border-left-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.servico-item:has(.servico-check:checked) .servico-portal {
+  border-left-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+.servico-item:has(.servico-check:checked) .servico-portal:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .servico-item, .servico-portal { transition: none; }
+}
+
+/* ── Toast de CNPJ copiado ─────────────────────────────────────────────── */
+.toast-cnpj {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--cor-primaria);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: var(--fonte);
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(15,76,92, 0.25);
+  white-space: nowrap;
+  transition: opacity 0.3s;
+}
+
+.tipo-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  background: var(--cor-primaria-claro);
+  color: var(--cor-primaria);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 1px 3px 1px 0;
+}
+
+/* ── Detalhe ──────────────────────────────────────────────────────────── */
+.detalhe-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--sombra-card);
+  border: 1px solid var(--borda-suave);
+  padding: 32px;
+  max-width: 860px;
+}
+
+.detalhe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--borda-suave);
+}
+
+.atend-id {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--texto-suave);
+  margin-bottom: 6px;
+}
+
+.data-hora {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--cor-primaria);
+  line-height: 1.2;
+}
+
+.data-hora span {
+  font-weight: 400;
+  color: var(--texto-secundario);
+  font-size: 1.1rem;
+  margin-left: 10px;
+}
+
+/* ── Grid de dados ────────────────────────────────────────────────────── */
+.dados-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.dado-item label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--texto-suave);
+  margin-bottom: 4px;
+}
+
+.dado-item .valor {
+  font-size: 0.93rem;
+  color: var(--texto-principal);
+  font-weight: 500;
+}
+
+.dado-item .valor a {
+  color: var(--cor-primaria);
+  text-decoration: none;
+  font-weight: 600;
+}
+.dado-item .valor a:hover { text-decoration: underline; }
+
+.dado-item .valor.vazio {
+  color: var(--texto-suave);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* ── Tipos de atendimento ─────────────────────────────────────────────── */
+.tipos-section {
+  margin-top: 4px;
+  padding-top: 20px;
+  border-top: 1px solid var(--borda-suave);
+  margin-bottom: 4px;
+}
+
+.tipos-section label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--texto-suave);
+  margin-bottom: 12px;
+}
+
+.tipos-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tipos-lista .tipo-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: var(--cor-primaria-claro);
+  border: 1px solid var(--borda);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: var(--cor-primaria);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ── Observação ───────────────────────────────────────────────────────── */
+.obs-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--borda-suave);
+}
+
+.obs-section label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--texto-suave);
+  margin-bottom: 8px;
+}
+
+.obs-section p {
+  font-size: 0.9rem;
+  color: var(--texto-principal);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  background: var(--bg-pagina);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  border: 1px solid var(--borda-suave);
+  margin: 0;
+}
+
+/* ── Form ─────────────────────────────────────────────────────────────── */
+.form-card { max-width: 760px; }
+
+/* ── Iniciar / Rápido ────────────────────────────────────────────────── */
+.iniciar-wrapper { max-width: 720px; }
+.rapido-wrapper  { max-width: 620px; }
+
+.iniciar-dica {
+  background: var(--cor-primaria-claro);
+  border: 1px solid var(--borda);
+  border-left: 4px solid var(--cor-primaria);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  color: var(--cor-primaria);
+}
+
+.dica-link { color: var(--cor-primaria); font-weight: 700; }
+
+.iniciar-card,
+.rapido-card  { padding: 28px; }
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVIDADE
+   ═══════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Toolbar em mobile: pode permitir quebra se desejado, mas mantemos nowrap por padrão */
+  .toolbar {
+    flex-wrap: wrap;           /* opcional: quebrar em mobile se necessário */
+    overflow-x: visible;
+  }
+
+  .iniciar-wrapper,
+  .rapido-wrapper  { max-width: 100%; }
+
+  .iniciar-card,
+  .rapido-card  { padding: 16px; }
+
+  /* Bloco unificado de serviços: 2 colunas no mobile, alvo de toque 44px */
+  .servicos-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .servico-item { min-height: 44px; }
+
+  .servico-corpo {
+    justify-content: center;
+    text-align: center;
+    padding: 10px 12px;
+    font-size: 0.82rem;
+  }
+
+  .servico-portal { padding: 0 14px; }
+
+  .btn-tipo-rapido {
+    min-height: 40px;
+    padding: 9px 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .servicos-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Cadastro rápido inline ──────────────────────────────────────────── */
+.btn-cadastrar-novo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 3px 10px;
+  border: 1px solid var(--cor-primaria);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--cor-primaria);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: var(--fonte);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-cadastrar-novo:hover {
+  background: var(--cor-primaria);
+  color: white;
+}
+
+.btn-tab-cadastro {
+  padding: 6px 16px;
+  border: 1.5px solid var(--borda);
+  border-radius: 20px;
+  background: white;
+  color: var(--texto-secundario);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: var(--fonte);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-tab-cadastro.ativo {
+  background: var(--cor-primaria);
+  border-color: var(--cor-primaria);
+  color: white;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  #secao-cadastro .form-group > div[style*="grid"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Tela de sucesso ──────────────────────────────────────────────────── */
+.sucesso-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 40px 16px;
+}
+.sucesso-card {
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.sucesso-icone { font-size: 3rem; margin-bottom: 16px; }
+.sucesso-titulo {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--cor-primaria);
+  margin-bottom: 24px;
+}
+.sucesso-resumo {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 16px 20px;
+  text-align: left;
+  margin-bottom: 24px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.sucesso-resumo p { margin: 0 0 8px; }
+.sucesso-resumo p:last-child { margin: 0; }
+.sucesso-acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Aviso filtro padrão ──────────────────────────────────────────────── */
+.aviso-filtro-padrao {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  color: #1d4ed8;
+  margin-bottom: 12px;
+}
+.aviso-filtro-padrao a { color: #1d4ed8; font-weight: 600; }
+
+/* ── Chips de filtro rápido ───────────────────────────────────────────── */
+.chips-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.chip {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--borda);
+  background: var(--bg-card);
+  color: var(--texto-principal);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.chip:hover { border-color: var(--cor-primaria); color: var(--cor-primaria); }
+.chip-ativo {
+  background: var(--cor-primaria);
+  border-color: var(--cor-primaria);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Paginação ──────────────────────────────────────────────────────────── */
+.paginacao-ir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  font-size: 0.82rem;
+}
+.paginacao-ir input {
+  width: 56px;
+  padding: 4px 8px;
+  border: 1px solid var(--borda, #ddd);
+  border-radius: 4px;
+  text-align: center;
+}
+
+/* ── Dropdown "Mais" ──────────────────────────────────────────────────── */
+.dropdown-secundario-menu.aberto { display: block !important; }
+
+/* ── Badge tipos com "+N" ─────────────────────────────────────────────── */
+.tipo-tag-mais {
+  background: #f3f4f6;
+  color: var(--texto-suave, #6b7280);
+  cursor: default;
+}
+/* ── Filtragem de serviços por tipo efetivo ────────────────────────────
+   Serviço fora do perfil só aparece pela válvula de escape, e quando
+   aparece fica visualmente distinto — o atendente precisa perceber que
+   está registrando uma exceção. */
+
+.valvula-escape {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 0.82rem;
+  color: var(--texto-secundario);
+  cursor: pointer;
+  user-select: none;
+}
+.valvula-escape input { cursor: pointer; }
+
+.servico-item.servico-fora-do-perfil {
+  border-style: dashed;
+  border-color: var(--cor-aviso);
+}
+.servico-item.servico-fora-do-perfil .servico-corpo { color: var(--cor-aviso); }
+.servico-item.servico-fora-do-perfil:has(.servico-check:checked) {
+  border-color: var(--cor-aviso);
+  background: var(--cor-aviso);
+}
+.servico-item.servico-fora-do-perfil:has(.servico-check:checked) .servico-corpo {
+  color: #fff;
+}
+
+.aviso-forcado {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  color: var(--cor-aviso);
+  font-weight: 600;
+}
+
+.banner-conversao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--cor-primaria-claro);
+  border: 1px solid var(--cor-acento);
+  font-size: 0.82rem;
+  color: var(--texto-principal);
+}
+.btn-desfazer-conversao {
+  border: 1px solid var(--cor-acento);
+  background: transparent;
+  color: var(--cor-acento);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: var(--fonte);
+  cursor: pointer;
+}
+.btn-desfazer-conversao:hover { background: var(--cor-acento); color: #fff; }

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}{{ titulo }}{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/usuarios.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="form-card">
+  <form method="POST">
+
+    <p class="section-label">Dados do Usuário</p>
+    <div class="form-row col-2">
+      <div class="form-group">
+        <label for="nome">Nome</label>
+        <input type="text" id="nome" name="nome"
+               value="{{ form.get('nome', '') }}" required autofocus>
+      </div>
+      <div class="form-group">
+        <label for="login">Login</label>
+        <input type="text" id="login" name="login"
+               value="{{ form.get('login', '') }}" required
+               autocomplete="off">
+      </div>
+    </div>
+
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group">
+        <label for="id_perfil">Perfil de acesso</label>
+        <select id="id_perfil" name="id_perfil" required>
+          <option value="">Selecione…</option>
+          {% for p in perfis %}
+          <option value="{{ p.id }}"
+                  {{ 'selected' if form.get('id_perfil', '') == p.id|string }}>
+            {{ p.nome }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {# Um único atributo `style`: com dois, o HTML descarta o segundo e o
+       display:none nunca se aplica. O estado inicial vem do SERVIDOR — o
+       campo só existe para atendente, mesmo sem JS. #}
+    <div class="form-row" id="campo-supervisor"
+         style="grid-template-columns:1fr;{{ '' if perfil_atual == 'atendente' else ' display:none;' }}">
+      <div class="form-group">
+        <label for="supervisor_id">Supervisor</label>
+        <select id="supervisor_id" name="supervisor_id">
+          <option value="">— Nenhum —</option>
+          {% for s in supervisores %}
+          <option value="{{ s.id }}"
+                  {{ 'selected' if form.get('supervisor_id', '') == s.id|string }}>
+            {{ s.nome }}{{ ' (inativo)' if not s.ativo else '' }}
+          </option>
+          {% endfor %}
+        </select>
+        <p style="font-size:0.78rem; color:var(--texto-suave); margin:6px 0 0;">
+          A qual AD este bolsista pertence. Trocar aqui remaneja de equipe.
+        </p>
+      </div>
+    </div>
+
+    <p class="section-label">Senha</p>
+
+    {% if acao == 'editar' %}
+    <div class="form-group">
+      <label style="display:flex; align-items:center; gap:8px;
+                    cursor:pointer; font-weight:600; font-size:0.88rem;">
+        <input type="checkbox" id="alterar-senha"
+               style="width:16px; height:16px; cursor:pointer;"
+               onchange="toggleCamposSenha(this.checked)">
+        Alterar Senha
+      </label>
+    </div>
+    <div id="campos-senha" style="display:none;">
+    {% endif %}
+
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group">
+        <label for="senha">
+          {% if acao == 'editar' %}
+            Nova senha
+          {% else %}
+            Senha
+          {% endif %}
+        </label>
+        <div class="senha-wrapper">
+          <input type="password" id="senha" name="senha"
+                 autocomplete="new-password"
+                 placeholder="Mínimo 6 caracteres, com 1 número"
+                 {% if acao == 'novo' %}required{% endif %}
+                 onblur="validarSenhaBlur()">
+          <span class="toggle-senha" onclick="toggleSenha('senha')" title="Mostrar/ocultar">&#128065;</span>
+        </div>
+        <div id="erro-senha" style="display:none; font-size:0.78rem;
+             color:var(--cor-perigo); margin-top:4px; font-weight:600;"></div>
+      </div>
+    </div>
+
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group" id="grupo-confirmar-senha">
+        <label for="confirmar_senha">Confirmar Senha</label>
+        <div class="senha-wrapper">
+          <input type="password" id="confirmar_senha" name="confirmar_senha"
+                 autocomplete="new-password"
+                 placeholder="Repita a senha"
+                 onblur="validarConfirmarBlur()">
+          <span class="toggle-senha" onclick="toggleSenha('confirmar_senha')" title="Mostrar/ocultar">&#128065;</span>
+        </div>
+        <div id="erro-confirmar" style="display:none; font-size:0.78rem;
+             color:var(--cor-perigo); margin-top:4px; font-weight:600;"></div>
+      </div>
+    </div>
+
+    {% if acao == 'editar' %}
+    </div>
+    {% endif %}
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">&#10003; Salvar</button>
+      <a href="{{ url_for('usuarios.index') }}" class="btn btn-link">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSenha(id) {
+  const input = document.getElementById(id || 'senha');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function toggleCamposSenha(mostrar) {
+  const campos = document.getElementById('campos-senha');
+  if (campos) {
+    campos.style.display = mostrar ? 'block' : 'none';
+    document.getElementById('senha').required = mostrar;
+  }
+}
+
+function validarSenhaBlur() {
+  const senha = document.getElementById('senha').value;
+  const erroEl = document.getElementById('erro-senha');
+  if (!erroEl) return;
+  if (!senha) { erroEl.style.display = 'none'; return; }
+  const erros = [];
+  if (senha.length < 6) erros.push('Mínimo 6 caracteres');
+  if (!/\d/.test(senha)) erros.push('Pelo menos 1 número');
+  erroEl.textContent = erros.join(' · ');
+  erroEl.style.display = erros.length ? 'block' : 'none';
+}
+
+function validarConfirmarBlur() {
+  const senha = document.getElementById('senha').value;
+  const confirmar = document.getElementById('confirmar_senha').value;
+  const erroEl = document.getElementById('erro-confirmar');
+  if (!erroEl || !confirmar) return;
+  erroEl.textContent = senha !== confirmar ? 'As senhas não conferem' : '';
+  erroEl.style.display = senha !== confirmar ? 'block' : 'none';
+}
+
+(function() {
+  var sel = document.getElementById('id_perfil');
+  var campo = document.getElementById('campo-supervisor');
+  if (!sel || !campo) return;
+  function toggleSupervisor() {
+    var nome = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.toLowerCase() : '';
+    campo.style.display = nome.includes('atendente') ? '' : 'none';
+  }
+  sel.addEventListener('change', toggleSupervisor);
+  toggleSupervisor();
+})();
+</script>
+{% endblock %}

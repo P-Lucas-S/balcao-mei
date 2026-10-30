@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% block titulo %}Relatório Executivo — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Relatório Executivo{% endblock %}
+
+{% block conteudo %}
+
+<div class="toolbar" style="margin-bottom:24px; align-items:flex-start;">
+  <div>
+    <p style="font-size:0.85rem; color:var(--texto-secundario); margin:4px 0 0;">
+      {{ filtros.data_inicio.strftime('%d/%m/%Y') }} a
+      {{ filtros.data_fim.strftime('%d/%m/%Y') }}
+    </p>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="{{ url_for('relatorios.exportar_executivo_pdf',
+             data_inicio=filtros.data_inicio, data_fim=filtros.data_fim) }}"
+       target="_blank"
+       class="btn btn-danger-outline">&#128196; Exportar PDF</a>
+    <a href="{{ url_for('relatorios.exportar_executivo_xlsx',
+             data_inicio=filtros.data_inicio, data_fim=filtros.data_fim) }}"
+       class="btn btn-outline"
+       style="color:var(--cor-sucesso); border-color:var(--cor-sucesso);">
+      &#128202; Exportar Excel
+    </a>
+    <a href="{{ url_for('relatorios.index') }}" class="btn btn-secondary">&#8592; Voltar</a>
+  </div>
+</div>
+
+{# Seletor de período #}
+<div class="card" style="padding:20px; margin-bottom:24px;">
+  <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-end;">
+
+    {# Período livre #}
+    <form method="GET" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+      <div class="form-group" style="margin:0;">
+        <label>Data Início</label>
+        <input type="date" name="data_inicio" value="{{ filtros.data_inicio.strftime('%Y-%m-%d') }}">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Data Fim</label>
+        <input type="date" name="data_fim" value="{{ filtros.data_fim.strftime('%Y-%m-%d') }}">
+      </div>
+      <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+    </form>
+
+    {# Atalhos mensais #}
+    <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+      <span style="font-size:0.75rem; color:var(--texto-suave); font-weight:700;
+                   text-transform:uppercase; letter-spacing:0.5px;">Mês rápido:</span>
+      {% for num, nome in meses_pt.items() %}
+        {% if num <= hoje.month %}
+        <a href="{{ url_for('relatorios.executivo',
+                   data_inicio=hoje.replace(month=num, day=1).isoformat(),
+                   data_fim=hoje.replace(month=num, day=28).isoformat()) }}"
+           style="font-size:0.75rem; padding:4px 10px; border-radius:12px;
+                  text-decoration:none; font-weight:600;
+                  {% if filtros.data_inicio.month == num %}
+                    background:var(--cor-primaria); color:white;
+                  {% else %}
+                    background:var(--cor-primaria-claro); color:var(--cor-primaria);
+                  {% endif %}">
+          {{ nome[:3] }}
+        </a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{# 1. Resumo geral #}
+<h3 style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+           color:var(--cor-primaria); margin:0 0 12px; padding-bottom:8px;
+           border-bottom:2px solid var(--cor-primaria-claro);">
+  1. Resumo Geral
+</h3>
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr));
+            gap:16px; margin-bottom:28px;">
+  <div class="card" style="padding:24px; text-align:center;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Atendimentos no Período
+    </p>
+    <p style="font-size:2.5rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0;">{{ total_atend }}</p>
+    {% if variacao is not none %}
+    <p style="font-size:0.82rem; font-weight:600; margin:8px 0 0;
+              color:{% if variacao >= 0 %}var(--cor-sucesso){% else %}var(--cor-perigo){% endif %};">
+      {% if variacao >= 0 %}&#9650;{% else %}&#9660;{% endif %}
+      {{ variacao | abs }}% vs período anterior
+    </p>
+    {% endif %}
+  </div>
+  <div class="card" style="padding:24px; text-align:center;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Período Anterior
+    </p>
+    <p style="font-size:2.5rem; font-weight:800; color:var(--texto-secundario);
+              line-height:1; margin:0;">{{ total_atend_ant }}</p>
+    <p style="font-size:0.78rem; color:var(--texto-suave); margin:8px 0 0;">
+      {{ periodo_ant.data_inicio.strftime('%d/%m/%Y') }} a
+      {{ periodo_ant.data_fim.strftime('%d/%m/%Y') }}
+    </p>
+  </div>
+</div>
+
+{# 2. Atendimentos por tipo — Donut Chart.js #}
+<h3 style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+           color:var(--cor-primaria); margin:0 0 12px; padding-bottom:8px;
+           border-bottom:2px solid var(--cor-primaria-claro);">
+  2. Atendimentos por Tipo
+</h3>
+
+{% set cores = ['#0f4c5c','#0d9488','#00bcd4','#065f46','#92400e','#1e40af','#9d174d'] %}
+
+<div class="card" style="padding:20px; margin-bottom:28px; width:fit-content;">
+  {% if por_tipo and total_atend > 0 %}
+  {# total_tipos = soma dos registros por tipo (atend. com múltiplos tipos contam várias vezes) #}
+  {% set total_tipos = por_tipo | sum(attribute='total') %}
+  <div style="display:flex; align-items:center; gap:32px; flex-wrap:wrap; max-width:600px;">
+
+    {# Canvas do donut com total centralizado #}
+    <div style="position:relative; width:200px; height:200px; flex-shrink:0;">
+      <canvas id="donut-tipos"
+              role="img"
+              aria-label="Gráfico donut de atendimentos por tipo"></canvas>
+      <div style="position:absolute; inset:0; display:flex; flex-direction:column;
+                  align-items:center; justify-content:center; pointer-events:none;">
+        <span style="font-size:2rem; font-weight:800; color:var(--texto-principal);
+                     line-height:1;">{{ total_atend }}</span>
+        <span style="font-size:0.65rem; color:var(--texto-suave); text-transform:uppercase;
+                     letter-spacing:0.08em; margin-top:2px;">total</span>
+      </div>
+    </div>
+
+    {# Legenda lateral — max-width contém a expansão #}
+    <div style="flex:1; min-width:180px; max-width:320px;">
+      {% for r in por_tipo %}
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <div style="width:12px; height:12px; border-radius:3px; flex-shrink:0;
+                    background:{{ cores[loop.index0 % cores|length] }};"></div>
+        <span style="flex:1; font-size:14px; color:var(--texto-principal);">
+          {{ r.tipo }}
+        </span>
+        <span style="font-size:14px; font-weight:600; color:var(--texto-principal);
+                     min-width:28px; text-align:right;">
+          {{ r.total }}
+        </span>
+        <span style="font-size:12px; color:var(--texto-secundario);
+                     min-width:46px; text-align:right;">
+          {{ "%.1f"|format(r.total / total_tipos * 100) if total_tipos else 0 }}%
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+  {% else %}
+  <div class="empty-state"><div>&#128222;</div><p>Nenhum atendimento no período.</p></div>
+  {% endif %}
+</div>
+
+{# 3. Atendimentos por atendente #}
+<h3 style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+           color:var(--cor-primaria); margin:0 0 12px; padding-bottom:8px;
+           border-bottom:2px solid var(--cor-primaria-claro);">
+  3. Atendimentos por Atendente
+</h3>
+<div class="card" style="overflow:hidden; margin-bottom:28px;">
+  {% if por_atendente %}
+  {% set total_geral = por_atendente | sum(attribute='total') %}
+  <table>
+    <thead>
+      <tr>
+        <th style="padding-left:20px;">Atendente</th>
+        <th style="text-align:center;">Total</th>
+        <th style="text-align:center;">% do Total</th>
+        <th>Participação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in por_atendente %}
+      <tr>
+        <td style="padding-left:20px; font-weight:600;">{{ r.usuario_nome }}</td>
+        <td style="text-align:center; font-weight:700; color:var(--cor-primaria);">
+          {{ r.total }}
+        </td>
+        <td style="text-align:center;">
+          {% if total_geral > 0 %}
+            {{ "%.1f"|format(r.total / total_geral * 100) }}%
+          {% else %}—{% endif %}
+        </td>
+        <td style="padding-right:20px;">
+          <div style="height:8px; border-radius:4px; background:var(--borda); overflow:hidden;">
+            <div style="height:100%; border-radius:4px; background:var(--cor-primaria);
+                        width:{% if total_geral > 0 %}{{ (r.total / total_geral * 100)|int }}{% else %}0{% endif %}%;"></div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--cor-primaria); color:white;">
+        <td style="font-weight:700; padding:10px 20px;">TOTAL GERAL</td>
+        <td style="text-align:center; font-weight:700;">{{ total_geral }}</td>
+        <td style="text-align:center;">100%</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+  {% else %}
+  <div class="empty-state"><div>&#128100;</div><p>Nenhum atendimento no período.</p></div>
+  {% endif %}
+</div>
+
+{# 4. Solicitações por status #}
+<h3 style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+           color:var(--cor-primaria); margin:0 0 12px; padding-bottom:8px;
+           border-bottom:2px solid var(--cor-primaria-claro);">
+  4. Solicitações por Status
+</h3>
+<div class="card" style="overflow:hidden; margin-bottom:28px;">
+  {% if solic_status %}
+  {% set total_solic = solic_status | sum(attribute='total') %}
+  <table>
+    <thead>
+      <tr>
+        <th style="padding-left:20px;">Status</th>
+        <th style="text-align:center;">Total</th>
+        <th style="text-align:center;">% do Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in solic_status %}
+      {% set st = r.status | lower %}
+      <tr>
+        <td style="padding-left:20px;">
+          <span class="badge-status
+            {%- if 'pendente' in st %} s-pendente
+            {%- elif 'an' in st %}     s-analise
+            {%- elif 'aprovado' in st %} s-aprovado
+            {%- elif 'recusado' in st %} s-recusado
+            {%- else %} s-default{%- endif %}">
+            {{ r.status }}
+          </span>
+        </td>
+        <td style="text-align:center; font-weight:700; color:var(--cor-primaria);">
+          {{ r.total }}
+        </td>
+        <td style="text-align:center;">
+          {% if total_solic > 0 %}{{ "%.1f"|format(r.total / total_solic * 100) }}%
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state"><div>&#128203;</div><p>Nenhuma solicitação no período.</p></div>
+  {% endif %}
+</div>
+
+{# 5. Solicitações por tipo (com agrupamento por categoria) #}
+<h3 style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+           color:var(--cor-primaria); margin:0 0 12px; padding-bottom:8px;
+           border-bottom:2px solid var(--cor-primaria-claro);">
+  5. Solicitações por Tipo
+</h3>
+
+{% if solic_categoria_lista %}
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px,1fr));
+            gap:12px; margin-bottom:20px;">
+  {% set total_cat = solic_categoria_lista | sum(attribute='total') %}
+  {% for cat in solic_categoria_lista %}
+  <div class="card" style="padding:16px; text-align:center;">
+    <p style="font-size:0.68rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:0.8px; color:var(--texto-suave); margin:0 0 6px;">
+      {{ cat.categoria }}
+    </p>
+    <p style="font-size:1.9rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0;">{{ cat.total }}</p>
+    {% if total_cat > 0 %}
+    <p style="font-size:0.72rem; color:var(--texto-suave); margin:4px 0 0;">
+      {{ "%.1f"|format(cat.total / total_cat * 100) }}%
+    </p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="card" style="overflow:hidden; margin-bottom:28px;">
+  {% if solic_tipo %}
+  {% set total_st = solic_tipo | sum(attribute='total') %}
+  <table>
+    <thead>
+      <tr>
+        <th style="padding-left:20px;">Tipo de Solicitação</th>
+        <th style="text-align:center;">Total</th>
+        <th style="text-align:center;">% do Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in solic_tipo %}
+      <tr>
+        <td style="padding-left:20px; font-weight:500;">{{ r.tipo }}</td>
+        <td style="text-align:center; font-weight:700; color:var(--cor-primaria);">
+          {{ r.total }}
+        </td>
+        <td style="text-align:center;">
+          {% if total_st > 0 %}{{ "%.1f"|format(r.total / total_st * 100) }}%
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state"><div>&#128203;</div><p>Nenhuma solicitação no período.</p></div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const CORES_DONUT = [
+  '#0f4c5c',  /* escuro — primária */
+  '#0d9488',  /* médio — acento */
+  '#00bcd4',  /* teal */
+  '#065f46',  /* verde escuro */
+  '#92400e',  /* âmbar */
+  '#1e40af',  /* azul */
+  '#9d174d',  /* rosa escuro */
+];
+
+function renderDonut(el, dados) {
+  new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: dados.map(d => d.tipo),
+      datasets: [{
+        data: dados.map(d => d.total),
+        backgroundColor: CORES_DONUT.slice(0, dados.length),
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed} atendimentos`
+          }
+        }
+      }
+    }
+  });
+}
+
+const elDonut = document.getElementById('donut-tipos');
+if (elDonut) {
+  const dados = {{ por_tipo | tojson }};
+  if ('IntersectionObserver' in window) {
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        obs.disconnect();
+        renderDonut(elDonut, dados);
+      }
+    }, { threshold: 0.1 });
+    obs.observe(elDonut);
+  } else {
+    renderDonut(elDonut, dados);
+  }
+}
+</script>
+{% endblock %}

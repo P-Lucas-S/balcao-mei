@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block titulo %}Atendimento Registrado — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Atendimento Registrado{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/atendimentos.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="sucesso-wrapper">
+  <div class="sucesso-card">
+    <div class="sucesso-icone">✅</div>
+    <h2 class="sucesso-titulo">Atendimento registrado com sucesso!</h2>
+    <div class="sucesso-resumo">
+      <p><strong>Pessoa:</strong> {{ atend.pessoa.nome_razao_social }}</p>
+      <p><strong>Data:</strong> {{ atend.data_atendimento.strftime('%d/%m/%Y') }}
+         às {{ atend.hora_atendimento.strftime('%H:%M') }}</p>
+      <p><strong>Tipos:</strong>
+        {% for at in atend.tipos %}
+          <span class="tipo-tag">{{ at.servico.descricao }}</span>
+        {% endfor %}
+      </p>
+      {% if atend.observacao %}
+      <p><strong>Observação:</strong> {{ atend.observacao }}</p>
+      {% endif %}
+    </div>
+    <div class="sucesso-acoes">
+      <a href="{{ url_for('pessoas.detalhe', id=atend.id_pessoa) }}"
+         class="btn btn-outline">
+        &#128100; Ver ficha do empreendedor
+      </a>
+      <a href="{{ url_for('solicitacoes.nova', atendimento_id=atend.id) }}"
+         class="btn btn-primary"
+         target="_blank" rel="noopener">
+        &#128221; Criar Solicitação
+      </a>
+      <a href="{{ url_for('atendimentos.iniciar') }}"
+         class="btn btn-primary">
+        &#127919; Iniciar novo atendimento
+      </a>
+      <a href="{{ url_for('atendimentos.index') }}"
+         class="btn btn-secondary">
+        Ver todos os atendimentos
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

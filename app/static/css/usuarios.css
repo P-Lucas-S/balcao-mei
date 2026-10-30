@@ -1,0 +1,97 @@
+/* ── lista.html ───────────────────────────────────────────────────────── */
+.toolbar { justify-content: flex-end; }
+
+tbody tr.inativo { opacity: 0.55; }
+
+/* Badges de perfil — coloridos por tipo */
+.badge-perfil {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  /* default: administrador → cor primária */
+  background: var(--cor-primaria-claro);
+  color: var(--cor-primaria);
+}
+.badge-perfil.secretario    { background: var(--cor-info-bg);    color: var(--cor-info);    }
+.badge-perfil.operador      { background: #f3f4f6;               color: #374151;            }
+.badge-perfil.intermediario { background: var(--cor-sucesso-bg); color: var(--cor-sucesso); }
+.badge-perfil.apoio         { background: #f3f4f6;               color: #6b7280;            }
+
+.status-ativo   { background: var(--cor-sucesso-bg); color: var(--cor-sucesso); }
+.status-inativo { background: #f3f4f6; color: var(--texto-suave); }
+
+.eu-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  background: var(--cor-aviso-bg);
+  color: var(--cor-aviso);
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.btn-warning-outline {
+  background: transparent;
+  border: 1px solid var(--cor-aviso);
+  color: var(--cor-aviso);
+  padding: 5px 12px;
+  font-size: 0.8rem;
+}
+.btn-warning-outline:hover { background: var(--cor-aviso-bg); }
+
+.btn-success-outline {
+  background: transparent;
+  border: 1px solid var(--cor-sucesso);
+  color: var(--cor-sucesso);
+  padding: 5px 12px;
+  font-size: 0.8rem;
+}
+.btn-success-outline:hover { background: var(--cor-sucesso-bg); }
+
+.btn-disabled {
+  background: transparent;
+  border: 1px solid var(--borda);
+  color: var(--texto-suave);
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  cursor: not-allowed;
+}
+
+/* ── form.html ────────────────────────────────────────────────────────── */
+.form-card { max-width: 560px; }
+
+.senha-wrapper { position: relative; }
+.senha-wrapper input { padding-right: 42px; }
+
+.toggle-senha {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+  user-select: none;
+}
+.toggle-senha:hover { color: var(--texto-secundario); }
+
+.hint { margin-top: 5px; font-size: 0.78rem; color: var(--texto-suave); }
+
+/* ── Selo "Sem equipe" na listagem ───────────────────────────────────────
+   Tom neutro, não de erro: um atendente sem AD é configuração pendente,
+   não defeito. Mesma família do selo "Em aberto" dos atendimentos. */
+.selo-sem-equipe {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px dashed var(--borda);
+  background: var(--bg-pagina);
+  color: var(--texto-suave);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}

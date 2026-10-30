@@ -1,0 +1,46 @@
+/* ── Tabelas de Domínio — Hub ─────────────────────────────────────────── */
+.hub-tabelas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.hub-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+
+.hub-icone {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.hub-info {
+  flex: 1;
+}
+
+.hub-titulo {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--texto-principal);
+}
+
+.hub-sub {
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+  margin-top: 2px;
+}
+
+/* ── lista.html ───────────────────────────────────────────────────────── */
+.td-id {
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+}
+
+.valor-vazio {
+  color: var(--texto-suave);
+  font-style: italic;
+}

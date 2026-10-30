@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% block titulo %}Análise de Empreendedores — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Análise de Empreendedores{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<style>
+.analise-nav-wrapper { position: relative; margin-bottom: 24px; }
+.analise-nav-wrapper::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 2px;
+  width: 40px;
+  background: linear-gradient(to right, transparent, var(--bg-pagina));
+  pointer-events: none;
+}
+.analise-nav {
+  display: flex; gap: 4px;
+  border-bottom: 2px solid var(--borda); padding-bottom: 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.analise-nav::-webkit-scrollbar { display: none; }
+.analise-nav a { white-space: nowrap; }
+@media (max-width: 768px) {
+  .analise-nav { gap: 2px; }
+  .analise-nav a { padding: 6px 12px !important; font-size: 0.78rem !important; }
+  .analise-grid-2col { grid-template-columns: 1fr !important; }
+}
+</style>
+{% endblock %}
+
+{% block conteudo %}
+
+{# ── Navegação por abas ── #}
+<div class="analise-nav-wrapper">
+<div class="analise-nav" style="display:flex; gap:4px;
+     border-bottom:2px solid var(--borda); padding-bottom:0;
+     overflow-x:auto; -webkit-overflow-scrolling:touch;
+     white-space:nowrap;">
+  <a href="{{ url_for('analise.index',
+             data_inicio=data_inicio.isoformat(),
+             data_fim=data_fim.isoformat()) }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:var(--cor-primaria); color:white;
+            border:2px solid var(--cor-primaria); border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    📊 Painel Executivo
+  </a>
+  <a href="{{ url_for('analise.jornada') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    🧭 Jornada
+  </a>
+  <a href="{{ url_for('analise.demanda',
+             data_inicio=data_inicio.isoformat(),
+             data_fim=data_fim.isoformat()) }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    📈 Demanda
+  </a>
+  <a href="{{ url_for('analise.perfil') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    👥 Perfil
+  </a>
+  <a href="{{ url_for('analise.potencial') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    🎯 Potencial e Alertas
+  </a>
+</div></div>
+
+{# ── Filtros de período ── #}
+<div class="card" style="padding:16px; margin-bottom:24px;">
+  <form method="GET">
+    <div style="display:grid; grid-template-columns:1fr 1fr;
+                gap:10px; margin-bottom:10px;">
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:0.68rem;">Início</label>
+        <input type="date" name="data_inicio"
+               value="{{ data_inicio.isoformat() }}">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:0.68rem;">Fim</label>
+        <input type="date" name="data_fim"
+               value="{{ data_fim.isoformat() }}">
+      </div>
+    </div>
+    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+      <a href="{{ url_for('analise.index',
+                 data_inicio=hoje.replace(day=1).isoformat(),
+                 data_fim=hoje.isoformat()) }}"
+         class="btn btn-outline"
+         style="font-size:0.78rem; padding:5px 10px;">Este mês</a>
+      <a href="{{ url_for('analise.index',
+                 data_inicio=mes_ant_inicio.isoformat(),
+                 data_fim=mes_ant_fim.isoformat()) }}"
+         class="btn btn-outline"
+         style="font-size:0.78rem; padding:5px 10px;">Mês anterior</a>
+      <button type="submit" class="btn btn-primary"
+              style="font-size:0.78rem; padding:5px 12px; margin-left:auto;">
+        🔍 Filtrar
+      </button>
+      <a href="{{ url_for('analise.exportar_xlsx', aba='executivo',
+                 data_inicio=data_inicio.isoformat(), data_fim=data_fim.isoformat()) }}"
+         class="btn btn-outline" style="font-size:0.78rem; padding:5px 10px;">
+        ⬇ Excel
+      </a>
+      <a href="{{ url_for('analise.exportar_pdf', aba='executivo',
+                 data_inicio=data_inicio.isoformat(), data_fim=data_fim.isoformat()) }}"
+         class="btn btn-outline" style="font-size:0.78rem; padding:5px 10px;">
+        📄 PDF
+      </a>
+      {% if current_user.perfil.nome == 'administrador' %}
+      <a href="{{ url_for('analise.parametros') }}"
+         class="btn btn-outline"
+         style="font-size:0.78rem; padding:5px 10px;">
+        ⚙️
+      </a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{# ── KPIs ── #}
+<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+            gap:16px; margin-bottom:24px;">
+
+  {# Empreendedores únicos #}
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Empreendedores Únicos
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis.unicos }}
+    </p>
+    {% if variacoes.unicos is not none %}
+    <p style="font-size:0.78rem; font-weight:600; margin:0;
+              color:{% if variacoes.unicos >= 0 %}var(--cor-sucesso){% else %}var(--cor-perigo){% endif %};">
+      {% if variacoes.unicos >= 0 %}▲{% else %}▼{% endif %}
+      {{ variacoes.unicos | abs }}% vs período anterior
+    </p>
+    {% endif %}
+    {% if kpis.cobertura is not none %}
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:4px 0 0;">
+      {{ kpis.cobertura }}% dos MEIs do município
+    </p>
+    {% endif %}
+  </div>
+
+  {# Novos MEIs #}
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Novos MEIs Formalizados
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis.novos_meis }}
+    </p>
+    {% if variacoes.novos_meis is not none %}
+    <p style="font-size:0.78rem; font-weight:600; margin:0;
+              color:{% if variacoes.novos_meis >= 0 %}var(--cor-sucesso){% else %}var(--cor-perigo){% endif %};">
+      {% if variacoes.novos_meis >= 0 %}▲{% else %}▼{% endif %}
+      {{ variacoes.novos_meis | abs }}% vs período anterior
+    </p>
+    {% endif %}
+  </div>
+
+  {# Total de atendimentos #}
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Total de Atendimentos
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis.total_atend }}
+    </p>
+    {% if variacoes.total_atend is not none %}
+    <p style="font-size:0.78rem; font-weight:600; margin:0;
+              color:{% if variacoes.total_atend >= 0 %}var(--cor-sucesso){% else %}var(--cor-perigo){% endif %};">
+      {% if variacoes.total_atend >= 0 %}▲{% else %}▼{% endif %}
+      {{ variacoes.total_atend | abs }}% vs período anterior
+    </p>
+    {% endif %}
+    {% if kpis.progresso_meta is not none %}
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:4px 0 0;">
+      {{ kpis.progresso_meta }}% da meta anual
+    </p>
+    {% endif %}
+  </div>
+
+  {# Taxa de retorno #}
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Taxa de Retorno
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis.taxa_retorno }}%
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis.com_retorno }} de {{ kpis.unicos }} retornaram
+    </p>
+  </div>
+
+</div>
+
+{# ── Insights automáticos ── #}
+{% if insights %}
+<div class="card" style="padding:20px; margin-bottom:24px;
+     border-left:4px solid var(--cor-primaria);">
+  <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+            letter-spacing:1px; color:var(--cor-primaria); margin:0 0 12px;">
+    💡 Insights do Período
+  </p>
+  <ul style="list-style:none; padding:0; margin:0;
+             display:flex; flex-direction:column; gap:8px;">
+    {% for insight in insights %}
+    <li style="font-size:0.88rem; color:var(--texto-principal);
+               padding:8px 12px; background:var(--bg-pagina);
+               border-radius:var(--radius); border:1px solid var(--borda-suave);">
+      {{ insight }}
+    </li>
+    {% endfor %}
+  </ul>
+  <p style="font-size:0.72rem; color:var(--texto-suave); margin:12px 0 0;
+            font-style:italic;">
+    Tendências observadas no período — não inferências causais.
+    Período anterior: {{ periodo_ant.data_inicio.strftime('%d/%m/%Y') }}
+    a {{ periodo_ant.data_fim.strftime('%d/%m/%Y') }}.
+  </p>
+</div>
+{% endif %}
+
+<div class="analise-grid-2col" style="display:grid; grid-template-columns:1fr 1fr;
+            gap:24px; margin-bottom:24px;">
+
+  {# ── Evolução mensal ── #}
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 16px;">
+      Evolução Mensal — Empreendedores Únicos
+    </p>
+    {% if evolucao %}
+    <div style="position:relative; height:220px;">
+      <canvas id="grafico-evolucao"></canvas>
+    </div>
+    {% else %}
+    <p style="color:var(--texto-suave); font-size:0.88rem; text-align:center;
+              padding:40px 0;">
+      Sem dados no período selecionado.
+    </p>
+    {% endif %}
+  </div>
+
+  {# ── Top 5 tipos ── #}
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 16px;">
+      Top 5 Serviços Mais Demandados
+    </p>
+    {% if top_tipos %}
+    {% set max_total = top_tipos[0].total %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for t in top_tipos %}
+      <div>
+        <div style="display:flex; justify-content:space-between;
+                    font-size:0.82rem; margin-bottom:4px;">
+          <span style="font-weight:600; color:var(--texto-principal);">
+            {{ t.tipo }}
+          </span>
+          <span style="color:var(--cor-primaria); font-weight:700;">
+            {{ t.total }}
+          </span>
+        </div>
+        <div style="height:6px; border-radius:3px;
+                    background:var(--borda); overflow:hidden;">
+          <div style="height:100%; border-radius:3px;
+                      background:var(--cor-primaria);
+                      width:{{ ((t.total / max_total) * 100)|int }}%;"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--texto-suave); font-size:0.88rem;
+              text-align:center; padding:40px 0;">
+      Sem dados no período.
+    </p>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Indicador operacional: atendimentos em aberto ────────────────────────
+   Fica DEPOIS dos números oficiais e visualmente separado deles de
+   propósito. Não é KPI: não entra em nenhum total desta tela. #}
+{% if em_aberto %}
+<section id="indicador-em-aberto" class="painel-em-aberto"
+         aria-labelledby="em-aberto-titulo">
+  <div class="painel-em-aberto-cabecalho">
+    <h2 id="em-aberto-titulo">
+      <span class="selo-em-aberto" aria-hidden="true">Em aberto</span>
+      {{ em_aberto.total }}
+      atendimento{{ 's' if em_aberto.total != 1 else '' }}
+      pendente{{ 's' if em_aberto.total != 1 else '' }} de conclusão
+    </h2>
+    <a href="{{ url_for('atendimentos.index', status='rascunho') }}"
+       class="btn btn-outline">Ver na lista &rarr;</a>
+  </div>
+  <p class="painel-em-aberto-nota">
+    Indicador operacional. Estes atendimentos <strong>não entram</strong> nos
+    números acima — só contam depois de concluídos. Independe do período
+    selecionado.
+  </p>
+  <ul class="painel-em-aberto-lista">
+    {% for a in em_aberto.por_atendente %}
+    <li>
+      {# Cada linha leva aos rascunhos daquela pessoa. A lista aplica o
+         escopo dela própria — este link não concede visibilidade nova. #}
+      <a class="painel-em-aberto-nome"
+         href="{{ url_for('atendimentos.index', status='rascunho', usuario_id=a.id) }}">
+        {{ a.nome }}
+      </a>
+      <span class="painel-em-aberto-qtd">{{ a.qtd }}</span>
+      {% if a.mais_antigo %}
+      <span class="painel-em-aberto-desde">
+        mais antigo em {{ a.mais_antigo.strftime('%d/%m/%Y') }}
+      </span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{# Aviso dados históricos se total_meis = 0 #}
+{% if kpis.total_meis_municipio == 0 or kpis.cobertura == 0.0 %}
+<div style="background:#fffbeb; border:1px solid #f59e0b;
+            border-left:4px solid #f59e0b; border-radius:8px;
+            padding:12px 16px; margin-bottom:24px;
+            display:flex; justify-content:space-between; align-items:center;">
+  <span style="font-size:0.85rem; color:#92400e;">
+    📌 Configure o total de MEIs do município para calcular a cobertura.
+  </span>
+  {% if current_user.perfil.nome == 'administrador' %}
+  <a href="{{ url_for('analise.parametros') }}"
+     class="btn btn-outline"
+     style="font-size:0.78rem; border-color:#f59e0b; color:#92400e;">
+    Configurar →
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if evolucao %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const evolucaoData = {{ evolucao | tojson }};
+new Chart(document.getElementById('grafico-evolucao'), {
+  type: 'line',
+  data: {
+    labels: evolucaoData.map(d => d.label),
+    datasets: [{
+      label: 'Empreendedores únicos',
+      data: evolucaoData.map(d => d.unicos),
+      borderColor: '#0f4c5c',
+      backgroundColor: 'rgba(15,76,92,0.08)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 4,
+      pointBackgroundColor: '#0f4c5c',
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1 } }
+    }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

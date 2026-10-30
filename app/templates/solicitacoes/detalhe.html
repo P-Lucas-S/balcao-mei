@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block titulo %}Solicitação #{{ sol.id }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Detalhes da Solicitação{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/solicitacoes.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+{% set st = sol.status.descricao | lower %}
+
+<div class="page-actions">
+  <a href="{{ url_for('solicitacoes.index') }}" class="btn btn-back">&#8592; Voltar</a>
+  {% if current_user.perfil.nome in ['administrador', 'supervisor', 'atendente'] %}
+  <a href="{{ url_for('fichas.emitir', sol_id=sol.id) }}"
+     class="btn btn-outline"
+     title="Emitir requerimento para esta solicitação">
+    &#128196; Emitir Requerimento
+  </a>
+  <a href="{{ url_for('solicitacoes.editar', id=sol.id) }}" class="btn btn-outline">&#9998; Editar</a>
+  {% endif %}
+  {% if current_user.perfil.nome == 'administrador' %}
+  <button type="button" class="btn btn-danger-outline"
+          data-url="{{ url_for('solicitacoes.remover', id=sol.id) }}"
+          data-msg="Remover esta solicitação? Esta ação não pode ser desfeita."
+          onclick="confirmarRemocao(this)">
+    &#128465; Remover
+  </button>
+  {% else %}
+  <form method="POST" action="{{ url_for('pendencias.solicitar') }}" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="entidade" value="solicitacao">
+    <input type="hidden" name="entidade_id" value="{{ sol.id }}">
+    <button type="button" class="btn btn-danger-outline"
+            onclick="abrirModalSolicitarExclusao(this)">
+      &#128465; Remover
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="detalhe-card">
+  <div class="detalhe-header">
+    <div>
+      <div class="sol-id">Solicitação #{{ sol.id }}</div>
+      <div class="sol-data">{{ sol.data_solicitacao.strftime('%d/%m/%Y') }}</div>
+      <div style="margin-top:8px;">{{ sol.tipo_solicitacao.descricao }}</div>
+    </div>
+    <span class="badge-status
+      {%- if 'pendente'  in st %} s-pendente
+      {%- elif 'an' in st %}      s-analise
+      {%- elif 'aprovado' in st %} s-aprovado
+      {%- elif 'recusado' in st %} s-recusado
+      {%- else %} s-default{%- endif %}">
+      {{ sol.status.descricao }}
+    </span>
+  </div>
+
+  <div class="dados-grid">
+    <div class="dado-item">
+      <label>Pessoa</label>
+      <div class="valor">
+        <a href="{{ url_for('pessoas.detalhe', id=sol.id_pessoa) }}">
+          {{ sol.pessoa.nome_razao_social }}
+        </a>
+      </div>
+    </div>
+    <div class="dado-item">
+      <label>Responsável</label>
+      <div class="valor">{{ sol.usuario.nome }}</div>
+    </div>
+    <div class="dado-item">
+      <label>Documento</label>
+      <div class="valor {% if not sol.pessoa.cpf and not sol.pessoa.cnpj %}vazio{% endif %}">
+        {% if sol.pessoa.cpf %}CPF {{ sol.pessoa.cpf }}
+        {% elif sol.pessoa.cnpj %}CNPJ {{ sol.pessoa.cnpj }}
+        {% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="dado-item">
+      <label>Contato</label>
+      <div class="valor {% if not sol.pessoa.telefone %}vazio{% endif %}">
+        {{ sol.pessoa.telefone or '—' }}
+      </div>
+    </div>
+    <div class="dado-item">
+      <label>Evento</label>
+      <div class="valor {% if not sol.evento %}vazio{% endif %}">
+        {{ sol.evento.descricao if sol.evento else '—' }}
+      </div>
+    </div>
+    <div class="dado-item">
+      <label>Atividade</label>
+      <div class="valor {% if not sol.atividade %}vazio{% endif %}">
+        {{ sol.atividade.descricao if sol.atividade else '—' }}
+      </div>
+    </div>
+  </div>
+
+  {% if sol.descricao %}
+  <div class="secao">
+    <label>Descrição</label>
+    <p>{{ sol.descricao }}</p>
+  </div>
+  {% endif %}
+
+  {% if sol.observacao %}
+  <div class="secao">
+    <label>Observação</label>
+    <p>{{ sol.observacao }}</p>
+  </div>
+  {% endif %}
+
+  {% if historico_status %}
+  <div class="secao" style="margin-top:16px;">
+    <label>Histórico de Status</label>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+      {% for log in historico_status %}
+      <div style="font-size:0.85rem; padding:10px 14px;
+                  background:var(--bg-pagina); border-radius:var(--radius);
+                  border-left:3px solid var(--cor-primaria);">
+        <span style="color:var(--texto-suave); font-size:0.78rem;">
+          {{ log.created_at.strftime('%d/%m/%Y %H:%M') }}
+          {% if log.usuario %} · {{ log.usuario.nome }}{% endif %}
+        </span>
+        <div style="margin-top:4px; color:var(--texto-principal);">
+          {{ log.descricao }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if current_user.perfil.nome in ['administrador', 'supervisor'] %}
+  <div class="secao" style="margin-top:20px; padding-top:16px;
+                              border-top:1px solid var(--borda-suave);">
+    <label>Alterar Status</label>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+      {% for s in todos_status %}
+      {% set s_l = s.descricao | lower %}
+      <button type="button"
+              onclick="trocarStatusDetalhe({{ sol.id }}, {{ s.id }}, '{{ s.descricao }}')"
+              class="btn
+                {%- if s.id == sol.id_status %} btn-primary
+                {%- elif 'recus' in s_l %} btn-danger-outline
+                {%- else %} btn-outline{%- endif %}"
+              {% if s.id == sol.id_status %}disabled aria-current="true"{% endif %}>
+        {{ s.descricao }}{% if s.id == sol.id_status %} &#10003;{% endif %}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Modal de motivo da recusa ── #}
+{% if current_user.perfil.nome in ['administrador', 'supervisor'] %}
+<div id="modal-recusa-motivo" class="modal-confirmar-overlay"
+     role="dialog" aria-modal="true" aria-labelledby="modal-recusa-titulo"
+     style="display:none;">
+  <div class="modal-confirmar-box">
+    <div class="modal-confirmar-icone" aria-hidden="true">&#128683;</div>
+    <p class="modal-confirmar-msg" id="modal-recusa-titulo">Motivo da Recusa</p>
+    <div class="form-group" style="margin:12px 0; text-align:left;">
+      <label style="font-size:0.85rem; color:var(--texto-suave);">
+        Motivo <span style="color:var(--cor-perigo);">*</span>
+        <span style="font-weight:400;">(mínimo 20 caracteres)</span>
+      </label>
+      <textarea id="modal-recusa-texto" rows="3"
+                style="width:100%; padding:8px; border:1px solid var(--borda);
+                       border-radius:var(--radius); font-size:0.85rem;
+                       resize:vertical; font-family:inherit;"
+                placeholder="Ex: documentação incompleta, prazo expirado..."></textarea>
+      <p id="modal-recusa-erro"
+         style="color:var(--cor-perigo); font-size:0.78rem;
+                margin-top:4px; display:none;">
+        O motivo deve ter pelo menos 20 caracteres.
+      </p>
+    </div>
+    <div class="modal-confirmar-btns">
+      <button type="button" class="btn btn-secondary" id="modal-recusa-cancelar">
+        Cancelar
+      </button>
+      <button type="button" class="btn btn-danger-outline" id="modal-recusa-confirmar">
+        Confirmar Recusa
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if current_user.perfil.nome in ['administrador', 'supervisor'] %}
+<script>
+let _modalRecusaResolve = null;
+
+function abrirModalRecusa() {
+  return new Promise(resolve => {
+    _modalRecusaResolve = resolve;
+    document.getElementById('modal-recusa-motivo').style.display = 'flex';
+    document.getElementById('modal-recusa-texto').value = '';
+    document.getElementById('modal-recusa-erro').style.display = 'none';
+    setTimeout(() => document.getElementById('modal-recusa-texto').focus(), 50);
+  });
+}
+
+function _fecharModalRecusa(valor) {
+  document.getElementById('modal-recusa-motivo').style.display = 'none';
+  if (_modalRecusaResolve) { _modalRecusaResolve(valor); _modalRecusaResolve = null; }
+}
+
+async function trocarStatusDetalhe(solId, novoStatusId, novoStatusDescricao) {
+  let motivoRecusa = '';
+  if (novoStatusDescricao.toLowerCase().includes('recus')) {
+    const motivo = await abrirModalRecusa();
+    if (motivo === null) return;
+    motivoRecusa = motivo;
+  }
+
+  const fd = new FormData();
+  fd.append('id_status', novoStatusId);
+  if (motivoRecusa) fd.append('motivo_recusa', motivoRecusa);
+
+  try {
+    const resp = await fetch(`{{ url_for('solicitacoes.index') }}${solId}/status`, {
+      method: 'POST', body: fd,
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      alert('Erro: ' + (data.erro || 'Tente novamente.'));
+      return;
+    }
+    location.reload();
+  } catch (err) {
+    alert('Erro de conexão. Tente novamente.');
+  }
+}
+
+document.getElementById('modal-recusa-confirmar').addEventListener('click', () => {
+  const texto = document.getElementById('modal-recusa-texto').value.trim();
+  if (texto.length < 20) {
+    document.getElementById('modal-recusa-erro').style.display = 'block';
+    document.getElementById('modal-recusa-texto').focus();
+    return;
+  }
+  _fecharModalRecusa(texto);
+});
+document.getElementById('modal-recusa-cancelar').addEventListener('click', () => {
+  _fecharModalRecusa(null);
+});
+document.getElementById('modal-recusa-motivo').addEventListener('click', e => {
+  if (e.target === e.currentTarget) _fecharModalRecusa(null);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' &&
+      document.getElementById('modal-recusa-motivo').style.display === 'flex') {
+    _fecharModalRecusa(null);
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block titulo %}Atendimento #{{ atend.id }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Detalhes do Atendimento{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/atendimentos.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="page-actions">
+  <a href="{{ url_for('atendimentos.index') }}" class="btn btn-back">&#8592; Voltar</a>
+  <a href="{{ url_for('atendimentos.editar', id=atend.id) }}" class="btn btn-outline">&#9998; Editar</a>
+  <a href="{{ url_for('solicitacoes.nova', atendimento_id=atend.id) }}" class="btn btn-primary">
+    &#43; Adicionar Solicitação
+  </a>
+  {% if current_user.perfil.nome == 'administrador' %}
+  <button type="button" class="btn btn-danger-outline"
+          data-url="{{ url_for('atendimentos.remover', id=atend.id) }}"
+          data-msg="Remover este atendimento? Esta ação não pode ser desfeita."
+          onclick="confirmarRemocao(this)">
+    &#128465; Remover
+  </button>
+  {% else %}
+  <form method="POST" action="{{ url_for('pendencias.solicitar') }}" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="entidade" value="atendimento">
+    <input type="hidden" name="entidade_id" value="{{ atend.id }}">
+    <button type="button" class="btn btn-danger-outline"
+            onclick="abrirModalSolicitarExclusao(this)">
+      &#128465; Remover
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="detalhe-card">
+  <div class="detalhe-header">
+    <div>
+      <div class="atend-id">Atendimento #{{ atend.id }}</div>
+      <div class="data-hora">
+        {{ atend.data_atendimento.strftime('%d/%m/%Y') }}
+        <span>{{ atend.hora_atendimento.strftime('%H:%M') }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="dados-grid">
+    <div class="dado-item">
+      <label>Pessoa Atendida</label>
+      <div class="valor">
+        <a href="{{ url_for('pessoas.detalhe', id=atend.id_pessoa) }}">
+          {{ atend.pessoa.nome_razao_social }}
+        </a>
+      </div>
+    </div>
+
+    <div class="dado-item">
+      <label>Responsável</label>
+      <div class="valor">{{ atend.usuario.nome }}</div>
+    </div>
+
+    <div class="dado-item">
+      <label>Documento</label>
+      <div class="valor {% if not atend.pessoa.cpf and not atend.pessoa.cnpj %}vazio{% endif %}">
+        {% if atend.pessoa.cpf %}
+          CPF {{ atend.pessoa.cpf }}
+        {% elif atend.pessoa.cnpj %}
+          CNPJ {{ atend.pessoa.cnpj }}
+        {% else %}
+          —
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="dado-item">
+      <label>Contato</label>
+      <div class="valor {% if not atend.pessoa.telefone %}vazio{% endif %}">
+        {{ atend.pessoa.telefone or '—' }}
+      </div>
+    </div>
+  </div>
+
+  <div class="tipos-section">
+    <label>Tipos de Atendimento</label>
+    <div class="tipos-lista">
+      {% for at in atend.servicos %}
+        <span class="tipo-tag">&#10003; {{ at.servico.descricao }}</span>
+      {% else %}
+        <span style="color:#ccc; font-style:italic;">Nenhum tipo registrado.</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if atend.observacao %}
+  <div class="obs-section">
+    <label>Observação</label>
+    <p>{{ atend.observacao }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

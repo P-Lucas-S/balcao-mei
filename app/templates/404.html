@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Página não encontrada — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Erro 404{% endblock %}
+
+{% block conteudo %}
+<div style="display:flex; flex-direction:column; align-items:center;
+            justify-content:center; padding:80px 20px; text-align:center;">
+
+  <div style="font-size:5rem; margin-bottom:16px; opacity:0.3;">&#128269;</div>
+
+  <h1 style="font-size:4rem; font-weight:800; color:var(--cor-primaria);
+             line-height:1; margin:0 0 8px;">404</h1>
+
+  <p style="font-size:1.1rem; font-weight:600; color:var(--texto-principal);
+            margin:0 0 8px;">Página não encontrada</p>
+
+  <p style="font-size:0.9rem; color:var(--texto-secundario);
+            max-width:380px; margin:0 0 32px; line-height:1.6;">
+    A página que você tentou acessar não existe ou foi removida.
+    Verifique o endereço digitado.
+  </p>
+
+  <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
+    <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
+      &#127968; Ir para o Dashboard
+    </a>
+    <a href="javascript:history.back()" class="btn btn-secondary">
+      &#8592; Voltar
+    </a>
+  </div>
+
+</div>
+{% endblock %}

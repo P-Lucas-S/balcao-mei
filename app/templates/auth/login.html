@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — {{ marca.APP_NOME }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body>
+
+  <!-- ── Lado esquerdo: marca ── -->
+  <div class="login-left">
+    <div class="login-logo">
+      <img src="{{ url_for('static', filename='img/logo.png') }}"
+           alt="{{ marca.APP_NOME }}">
+    </div>
+  </div>
+
+  <!-- ── Lado direito: formulário ── -->
+  <div class="login-right">
+    <div class="login-wrapper">
+
+      <h2 class="login-right-titulo">Entrar no Painel</h2>
+      <p class="login-right-sub">Acesse com seu login e senha.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+      {% endwith %}
+
+      <form method="POST" id="form-login">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label for="login">Login</label>
+          <input type="text" id="login" name="login"
+                 placeholder="seu login" autofocus required
+                 autocomplete="username">
+        </div>
+        <div class="form-group" style="position:relative;">
+          <label for="senha">Senha</label>
+          <div style="position:relative;">
+            <input type="password" id="senha" name="senha"
+                   placeholder="••••••••" required
+                   autocomplete="current-password"
+                   style="padding-right:44px;">
+            <button type="button"
+                    onclick="toggleSenhaLogin()"
+                    style="position:absolute; right:10px; top:50%;
+                           transform:translateY(-50%); background:none;
+                           border:none; cursor:pointer; font-size:1.1rem;
+                           color:#888; padding:4px;"
+                    title="Mostrar/ocultar senha">
+              👁
+            </button>
+          </div>
+        </div>
+
+        <label style="display:flex; align-items:center; gap:8px;
+                      font-size:0.82rem; color:#666; margin-bottom:16px;
+                      cursor:pointer;">
+          <input type="checkbox" id="lembrar-login"
+                 onchange="salvarLogin(this.checked)">
+          Lembrar meu login neste dispositivo
+        </label>
+
+        <button type="submit" class="btn-login">Acessar Sistema →</button>
+      </form>
+
+      <div style="text-align:center; margin-top:16px;">
+        <button type="button"
+                onclick="document.getElementById('modal-senha').style.display='flex'"
+                style="background:none; border:none; color:#888;
+                       font-size:0.80rem; cursor:pointer;
+                       text-decoration:underline;">
+          Esqueci minha senha
+        </button>
+      </div>
+
+      <p class="login-footer">
+        {{ marca.APP_NOME }} · demonstração ·
+        <span style="color:#aaa;">v2.0</span>
+      </p>
+
+    </div>
+  </div>
+
+  {# Modal "Esqueci minha senha" #}
+  <div id="modal-senha" style="display:none; position:fixed; inset:0;
+       background:rgba(0,0,0,0.5); z-index:9999;
+       align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:12px; padding:32px;
+                max-width:400px; width:90%;
+                box-shadow:0 8px 32px rgba(0,0,0,0.2); text-align:center;">
+      <div style="font-size:2rem; margin-bottom:12px;">🔑</div>
+      <p style="font-size:1rem; font-weight:700; color:#0f4c5c;
+                margin:0 0 8px;">Recuperação de Senha</p>
+      <p style="font-size:0.88rem; color:#555; margin:0 0 20px; line-height:1.5;">
+        Entre em contato com a administradora do sistema
+        para redefinir sua senha.<br><br>
+        <strong>Administrador do sistema</strong><br>
+        <a href="https://wa.me/"
+           target="_blank"
+           style="color:#25d366; font-weight:600; text-decoration:none;">
+          💬 Chamar no WhatsApp
+        </a>
+      </p>
+      <button type="button"
+              onclick="document.getElementById('modal-senha').style.display='none'"
+              style="background:#0f4c5c; color:white; border:none;
+                     border-radius:8px; padding:10px 24px;
+                     font-size:0.88rem; cursor:pointer; font-weight:600;">
+        Fechar
+      </button>
+    </div>
+  </div>
+
+  <script>
+  function toggleSenhaLogin() {
+    const input = document.getElementById('senha');
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+
+  function salvarLogin(salvar) {
+    if (salvar) {
+      localStorage.setItem('balcao_login',
+        document.getElementById('login').value);
+    } else {
+      localStorage.removeItem('balcao_login');
+    }
+  }
+
+  // Restaurar login salvo
+  document.addEventListener('DOMContentLoaded', function() {
+    const loginSalvo = localStorage.getItem('balcao_login');
+    if (loginSalvo) {
+      const input = document.getElementById('login');
+      input.value = loginSalvo;
+      document.getElementById('lembrar-login').checked = true;
+      document.getElementById('senha').focus();
+    }
+  });
+
+  // Salvar login ao submeter se checkbox marcado
+  document.getElementById('form-login').addEventListener('submit', function() {
+    if (document.getElementById('lembrar-login').checked) {
+      localStorage.setItem('balcao_login',
+        document.getElementById('login').value);
+    }
+  });
+
+  // Fechar modal clicando fora
+  document.getElementById('modal-senha').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+  });
+  </script>
+
+</body>
+</html>

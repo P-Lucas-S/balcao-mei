@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block titulo %}{{ cfg.titulo }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}{{ cfg.titulo }}{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tabelas.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="toolbar">
+  <a href="{{ url_for('tabelas.index') }}" class="btn btn-secondary">&#8592; Parâmetros</a>
+  <a href="{{ url_for('tabelas.novo', chave=chave) }}" class="btn btn-primary">&#43; Novo</a>
+</div>
+
+<div style="margin-bottom:12px;">
+  <input type="text" id="busca-live"
+         placeholder="🔍 Filtrar por descrição…"
+         oninput="filtrarLive(this.value)"
+         style="width:100%; padding:8px 12px;
+                border:1px solid var(--borda,#ddd);
+                border-radius:6px; font-size:0.88rem;
+                font-family:inherit; box-sizing:border-box;">
+</div>
+
+{# Abas Ativos / Inativos (apenas para tabelas com campo ativo) #}
+{% if cfg.tem_ativo %}
+<div style="display:flex; gap:6px; margin-bottom:12px;">
+  <a href="{{ url_for('tabelas.lista', chave=chave, filtro='ativos', q=q) }}"
+     class="btn btn-sm {% if filtro != 'inativos' %}btn-primary{% else %}btn-outline{% endif %}">
+    Ativos
+  </a>
+  <a href="{{ url_for('tabelas.lista', chave=chave, filtro='inativos', q=q) }}"
+     class="btn btn-sm {% if filtro == 'inativos' %}btn-primary{% else %}btn-outline{% endif %}">
+    Inativos
+  </a>
+</div>
+{% endif %}
+
+<div class="card table-to-cards">
+  {% if itens %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        {% for label in cfg.labels %}
+        <th>{{ label }}</th>
+        {% endfor %}
+        {% if cfg.tem_ativo %}
+        <th>Em uso</th>
+        <th>Status</th>
+        {% endif %}
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in itens %}
+      <tr {% if cfg.tem_ativo and not item.ativo %}style="opacity:0.6;"{% endif %}>
+        <td class="td-id" data-label="#">{{ item.id }}</td>
+
+        {% for campo in cfg.campos %}
+        <td data-label="{{ cfg.labels[loop.index0] }}">
+          {% set val = item | attr(campo) %}
+          {% if val is none %}
+            <span class="valor-vazio">—</span>
+          {% elif campo in ('data_inicio', 'data_fim') %}
+            {{ val.strftime('%d/%m/%Y') }}
+          {% else %}
+            {{ val }}
+          {% endif %}
+        </td>
+        {% endfor %}
+
+        {% if cfg.tem_ativo %}
+        {% set n_uso = uso_map[item.id] %}
+        <td data-label="Em uso">
+          {% if n_uso %}
+            <span style="font-weight:600; color:var(--cor-primaria);">{{ n_uso }}</span>
+          {% else %}
+            <span class="valor-vazio">—</span>
+          {% endif %}
+        </td>
+        <td data-label="Status">
+          {% if item.ativo %}
+            <span style="color:#16a34a; font-weight:600; font-size:0.82rem;">&#9679; Ativo</span>
+          {% else %}
+            <span style="color:#dc2626; font-weight:600; font-size:0.82rem;">&#9679; Inativo</span>
+          {% endif %}
+        </td>
+        {% endif %}
+
+        <td data-label="Ações">
+          <div class="acoes">
+            <a href="{{ url_for('tabelas.editar', chave=chave, id=item.id) }}"
+               class="btn btn-outline">Editar</a>
+
+            {% if cfg.tem_ativo %}
+              {% if item.ativo %}
+                {% if not item.protegido %}
+                <button type="button" class="btn btn-danger-outline"
+                        onclick="abrirModalDesativar({{ item.id }}, '{{ item.descricao | replace("'", "\\'") }}', {{ uso_map[item.id] }})">
+                  Desativar
+                </button>
+                {% endif %}
+              {% else %}
+                <form method="POST"
+                      action="{{ url_for('tabelas.reativar', chave=chave, id=item.id) }}"
+                      style="display:inline;">
+                  <button type="submit" class="btn btn-outline"
+                          style="color:#16a34a; border-color:#16a34a;">
+                    Reativar
+                  </button>
+                </form>
+                {% if not item.protegido and uso_map[item.id] == 0 %}
+                <button type="button" class="btn btn-danger-outline"
+                        data-url="{{ url_for('tabelas.remover', chave=chave, id=item.id) }}"
+                        data-msg='Remover permanentemente "{{ item.descricao }}"? Esta ação não pode ser desfeita.'
+                        onclick="confirmarRemocao(this)">
+                  Remover
+                </button>
+                {% endif %}
+              {% endif %}
+            {% else %}
+              {% if uso_map[item.id] == 0 %}
+              <button type="button" class="btn btn-danger-outline"
+                      data-url="{{ url_for('tabelas.remover', chave=chave, id=item.id) }}"
+                      data-msg='Remover "{{ item.descricao }}"?'
+                      onclick="confirmarRemocao(this)">
+                Remover
+              </button>
+              {% endif %}
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <div>&#128194;</div>
+    <p>{% if q %}Nenhum resultado para "{{ q }}".{% else %}Nenhum registro cadastrado ainda.{% endif %}</p>
+    {% if not q %}
+    <a href="{{ url_for('tabelas.novo', chave=chave) }}" class="btn btn-primary">&#43; Adicionar primeiro</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{# Modal de confirmação de desativação #}
+{% if cfg.tem_ativo %}
+<div id="modal-desativar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
+     z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-card); border-radius:var(--radius-lg); padding:28px 32px;
+              max-width:420px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <h3 style="margin:0 0 8px; font-size:1.1rem; color:var(--texto-principal);">Desativar item</h3>
+    <p id="modal-desativar-msg" style="margin:0 0 16px; color:var(--texto-suave); font-size:0.9rem;"></p>
+    <form id="form-desativar" method="POST" action="">
+      <label style="font-size:0.82rem; font-weight:600; color:var(--texto-suave); display:block; margin-bottom:4px;">
+        Motivo (opcional)
+      </label>
+      <textarea name="motivo" rows="2"
+                style="width:100%; padding:8px; border:1px solid var(--borda); border-radius:var(--radius);
+                       font-family:inherit; font-size:0.9rem; resize:vertical; box-sizing:border-box;"></textarea>
+      <div style="display:flex; gap:10px; margin-top:16px; justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" onclick="fecharModalDesativar()">Cancelar</button>
+        <button type="submit" class="btn btn-danger-outline">Desativar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function abrirModalDesativar(id, nome, emUso) {
+  var url = '{{ url_for("tabelas.desativar", chave=chave, id=0) }}'.replace('/0/', '/' + id + '/');
+  var msg = emUso > 0
+    ? 'O item "' + nome + '" está em uso em ' + emUso + ' registro(s). Ele pode ser desativado — novos registros não poderão selecioná-lo.'
+    : 'Deseja desativar "' + nome + '"? O item não aparecerá mais nos formulários.';
+  document.getElementById('modal-desativar-msg').textContent = msg;
+  document.getElementById('form-desativar').action = url;
+  var m = document.getElementById('modal-desativar');
+  m.style.display = 'flex';
+}
+function fecharModalDesativar() {
+  document.getElementById('modal-desativar').style.display = 'none';
+}
+document.getElementById('modal-desativar').addEventListener('click', function(e) {
+  if (e.target === this) fecharModalDesativar();
+});
+</script>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function filtrarLive(q) {
+  const ql = q.toLowerCase().trim();
+  document.querySelectorAll('tbody tr').forEach(function(row) {
+    row.style.display =
+      row.textContent.toLowerCase().includes(ql) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

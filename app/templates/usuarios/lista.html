@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block titulo %}Usuários — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Usuários{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/usuarios.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="toolbar">
+  {% if current_user.perfil.nome in ['administrador'] %}
+  <a href="{{ url_for('usuarios.novo') }}" class="btn btn-primary">&#43; Novo Usuário</a>
+  {% endif %}
+  {% if current_user.perfil.nome == 'administrador' %}
+  <a href="{{ url_for('usuarios.log') }}" class="btn btn-secondary">
+    &#128196; Log de Ações
+  </a>
+  {% endif %}
+  <form method="GET" action="" style="display:flex; gap:8px; align-items:center; margin-left:auto;">
+    <div class="filter-group" style="margin:0;">
+      <select name="equipe" style="min-width:190px;">
+        <option value="">Todas as equipes</option>
+        {% for s in supervisores %}
+        <option value="{{ s.id }}" {{ 'selected' if f_equipe == s.id|string }}>
+          Equipe de {{ s.nome }}{{ ' (inativo)' if not s.ativo else '' }}
+        </option>
+        {% endfor %}
+        <option value="sem" {{ 'selected' if f_equipe == 'sem' }}>
+          Atendentes sem equipe
+        </option>
+      </select>
+    </div>
+    <div class="filter-group" style="margin:0;">
+      <input type="text" name="q" value="{{ q }}"
+             placeholder="Buscar por nome ou login..."
+             style="width:240px;">
+    </div>
+    <button type="submit" class="btn btn-primary">&#128269; Buscar</button>
+    {% if q or f_equipe %}
+    <a href="{{ url_for('usuarios.index') }}" class="btn btn-secondary">&#10005; Limpar</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if q %}
+<p style="font-size:13px; color:var(--texto-secundario); margin-bottom:8px;">
+  {{ usuarios|length }} resultado(s) para "{{ q }}"
+</p>
+{% endif %}
+
+<div class="card table-to-cards">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Nome</th>
+        <th>Login</th>
+        <th>Perfil</th>
+        <th>Equipe</th>
+        <th>Último Login</th>
+        <th>Status</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in usuarios %}
+      <tr class="{{ 'inativo' if not u.ativo else '' }}">
+        <td data-label="#">{{ u.id }}</td>
+        <td data-label="Nome">
+          {{ u.nome }}
+          {% if u.id == current_user.id %}
+            <span class="eu-tag">você</span>
+          {% endif %}
+        </td>
+        <td data-label="Login" style="font-family: monospace; color:#555;">{{ u.login }}</td>
+        <td data-label="Perfil">
+          <span class="badge-perfil {{ u.perfil.nome }}">{{ u.perfil.nome }}</span>
+        </td>
+        {# A qual AD o bolsista pertence. Sem esta coluna era preciso abrir
+           usuário por usuário para descobrir a composição das equipes. #}
+        <td data-label="Equipe">
+          {% if u.perfil.nome == 'atendente' %}
+            {% if u.supervisor %}
+              <a href="{{ url_for('usuarios.index', equipe=u.supervisor.id) }}"
+                 class="nome-link">{{ u.supervisor.nome }}</a>
+              {% if not u.supervisor.ativo %}
+              <span class="badge-status status-inativo">AD inativo</span>
+              {% endif %}
+            {% else %}
+              <span class="selo-sem-equipe">Sem equipe</span>
+            {% endif %}
+          {% elif u.perfil.nome == 'supervisor' %}
+            <a href="{{ url_for('usuarios.index', equipe=u.id) }}" class="nome-link">
+              {{ u.atendentes.count() }} na equipe
+            </a>
+          {% else %}
+            <span style="color:var(--texto-suave);">—</span>
+          {% endif %}
+        </td>
+        <td data-label="Último Login">
+          {% if u.ultimo_login %}
+            {% set dias = (hoje - u.ultimo_login.date()).days %}
+            <span style="font-size:0.82rem;
+              color:{% if dias == 0 %}var(--cor-sucesso)
+                    {% elif dias <= 7 %}var(--texto-principal)
+                    {% elif dias <= 30 %}var(--cor-aviso)
+                    {% else %}var(--cor-perigo){% endif %};">
+              {{ u.ultimo_login.strftime('%d/%m/%Y %H:%M') }}
+            </span>
+          {% else %}
+            <span style="color:var(--texto-suave); font-size:0.82rem;">Nunca</span>
+          {% endif %}
+        </td>
+        <td data-label="Status">
+          <span class="badge-status {{ 'status-ativo' if u.ativo else 'status-inativo' }}">
+            {{ 'Ativo' if u.ativo else 'Inativo' }}
+          </span>
+        </td>
+        <td data-label="Ações">
+          <div class="acoes">
+            <a href="{{ url_for('usuarios.editar', id=u.id) }}" class="btn btn-outline">Editar</a>
+
+            {% if u.ativo %}
+              {% if u.id == current_user.id %}
+                <span class="btn btn-disabled" title="Você não pode desativar seu próprio usuário">Desativar</span>
+              {% else %}
+                <button type="button" class="btn btn-warning-outline"
+                        onclick="confirmarDesativar({{ u.id }}, '{{ u.nome }}',
+                                 '{{ url_for('usuarios.desativar', id=u.id) }}')">
+                  Desativar
+                </button>
+              {% endif %}
+            {% else %}
+              <form method="POST" action="{{ url_for('usuarios.ativar', id=u.id) }}">
+                <button type="submit" class="btn btn-success-outline">Ativar</button>
+              </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="modal-desativar" style="display:none; position:fixed;
+     inset:0; background:rgba(0,0,0,0.5); z-index:9999;
+     align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:32px;
+              max-width:440px; width:90%;">
+    <p style="font-size:1rem; font-weight:700; color:var(--cor-aviso);
+              margin:0 0 8px;">&#9888;&#65039; Desativar usuário</p>
+    <p id="msg-desativar" style="font-size:0.88rem; margin:0 0 16px;
+       color:var(--texto-principal);"></p>
+    <label style="display:flex; align-items:center; gap:8px;
+                  font-size:0.85rem; margin-bottom:20px; cursor:pointer;">
+      <input type="checkbox" id="ciente-desativar"
+             onchange="document.getElementById('btn-confirmar-desativar').disabled = !this.checked">
+      Estou ciente que este usuário perderá acesso imediatamente
+    </label>
+    <div style="display:flex; gap:10px;">
+      <form id="form-desativar" method="POST">
+        <button type="submit" id="btn-confirmar-desativar"
+                class="btn btn-warning-outline" disabled>
+          Desativar
+        </button>
+      </form>
+      <button type="button" class="btn btn-secondary"
+              onclick="document.getElementById('modal-desativar').style.display='none'">
+        Cancelar
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmarDesativar(id, nome, url) {
+  document.getElementById('msg-desativar').textContent =
+    `O usuário "${nome}" perderá acesso ao sistema imediatamente. Atendimentos e solicitações existentes não são afetados.`;
+  document.getElementById('form-desativar').action = url;
+  document.getElementById('ciente-desativar').checked = false;
+  document.getElementById('btn-confirmar-desativar').disabled = true;
+  const modal = document.getElementById('modal-desativar');
+  modal.style.display = 'flex';
+  modal.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
+}
+</script>
+{% endblock %}

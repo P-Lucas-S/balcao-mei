@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}{{ titulo }}{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/atendimentos.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="form-card">
+  <form method="POST" id="form-atendimento">
+
+    {# ── Data e Hora ── #}
+    <p class="section-label">Data e Hora</p>
+    <div class="form-row col-3">
+      {% if current_user.perfil.nome == 'atendente' %}
+      <div class="form-group">
+        <label for="data_atendimento">Data</label>
+        <input type="date" id="data_atendimento" name="data_atendimento"
+               value="{{ form.get('data_atendimento', '') }}" required
+               readonly style="background:#f3f4f6; cursor:not-allowed;">
+        <small style="color:var(--texto-suave); font-size:0.75rem;">
+          Somente administradores podem alterar a data.
+        </small>
+      </div>
+      <div class="form-group">
+        <label for="hora_atendimento">Hora</label>
+        <input type="time" id="hora_atendimento" name="hora_atendimento"
+               value="{{ form.get('hora_atendimento', '') }}" required
+               readonly style="background:#f3f4f6; cursor:not-allowed;">
+      </div>
+      {% else %}
+      <div class="form-group">
+        <label for="data_atendimento">Data</label>
+        <input type="date" id="data_atendimento" name="data_atendimento"
+               value="{{ form.get('data_atendimento', '') }}" required>
+      </div>
+      <div class="form-group">
+        <label for="hora_atendimento">Hora</label>
+        <input type="time" id="hora_atendimento" name="hora_atendimento"
+               value="{{ form.get('hora_atendimento', '') }}" required>
+      </div>
+      {% endif %}
+    </div>
+
+    {# ── Pessoa ── #}
+    <p class="section-label">Pessoa Atendida</p>
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group">
+        <label>Nome / CPF / CNPJ</label>
+        <div class="pessoa-search-wrapper">
+          <input type="text" id="pessoa-busca"
+                 placeholder="Digite para buscar…"
+                 autocomplete="off">
+          <span class="pessoa-clear" id="pessoa-clear" title="Limpar">&#10005;</span>
+          <div class="pessoa-dropdown" id="pessoa-dropdown"></div>
+        </div>
+        <div class="pessoa-selecionada" id="pessoa-selecionada"></div>
+        <input type="hidden" id="id_pessoa" name="id_pessoa"
+               value="{{ form.get('id_pessoa', '') }}" required>
+      </div>
+    </div>
+
+    {# ── Canal — COMO o empreendedor chegou (um só) ── #}
+    <p class="section-label">Canal de Atendimento</p>
+    <div class="form-row col-2">
+      <div class="form-group">
+        <label for="id_canal">Como o empreendedor chegou</label>
+        <select id="id_canal" name="id_canal">
+          {% for c in canais %}
+          <option value="{{ c.id }}"
+                  {{ 'selected' if form.get('id_canal', '') == c.id|string else '' }}>
+            {{ c.descricao }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {# ── Serviços — O QUE foi feito (vários) ── #}
+    <div class="section-label-row">
+      <p class="section-label" style="margin:0">Serviços Realizados <span style="color:#dc3545;">*</span></p>
+      {% if current_user.perfil.nome in ['administrador', 'supervisor', 'atendente'] %}
+      <button type="button" class="btn-novo-rapido" onclick="abrirModal('servico', 'Novo Serviço', adicionarTipoCheckbox)">
+        &#43; Novo tipo
+      </button>
+      {% endif %}
+    </div>
+    <div class="tipos-grid">
+      {% for tipo in servicos %}
+      <label class="tipo-check {{ 'marcado' if tipo.id|string in servicos_sel else '' }}">
+        <input type="checkbox" name="servicos" value="{{ tipo.id }}"
+               {{ 'checked' if tipo.id|string in servicos_sel else '' }}
+               onchange="toggleMarcado(this)">
+        {{ tipo.descricao }}
+      </label>
+      {% endfor %}
+    </div>
+    <div class="tipos-erro" id="tipos-erro">Selecione pelo menos um serviço.</div>
+
+    {# ── Responsável ── #}
+    <p class="section-label">Responsável</p>
+    <div class="form-row col-2">
+      <div class="form-group">
+        <label for="id_usuario">Usuário responsável</label>
+        <select id="id_usuario" name="id_usuario" required>
+          <option value="">Selecione…</option>
+          {% for u in usuarios %}
+          <option value="{{ u.id }}"
+                  {{ 'selected' if form.get('id_usuario', '') == u.id|string else '' }}>
+            {{ u.nome }} ({{ u.perfil.nome }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {# ── Observação ── #}
+    <p class="section-label">Observação</p>
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group">
+        <label for="observacao">Observação <span class="opcional">(opcional)</span></label>
+        <textarea id="observacao" name="observacao"
+                  placeholder="Informações adicionais sobre o atendimento…">{{ form.get('observacao', '') }}</textarea>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">&#10003; Salvar</button>
+      {% if acao == 'editar' and atend %}
+        <a href="{{ url_for('atendimentos.detalhe', id=atend.id) }}" class="btn btn-link">Cancelar</a>
+      {% else %}
+        <a href="{{ url_for('atendimentos.index') }}" class="btn btn-link">Cancelar</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <div id="modal-rapido" class="modal-rapido-overlay" style="display:none">
+    <div class="modal-rapido-box">
+      <p class="modal-rapido-titulo" id="modal-titulo"></p>
+      <input type="text" id="modal-input" class="modal-rapido-input"
+             placeholder="Digite a descrição…" maxlength="100">
+      <p class="modal-rapido-erro" id="modal-erro" style="display:none"></p>
+      <div class="modal-rapido-btns">
+        <button type="button" class="btn btn-primary" id="modal-salvar">Salvar</button>
+        <button type="button" class="btn btn-link"    id="modal-cancelar">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Dados das pessoas (para busca client-side) ─────────────────────────────
+const PESSOAS = [
+  {% for p in pessoas %}
+  {
+    id:    {{ p.id }},
+    nome:  {{ p.nome_razao_social | tojson }},
+    doc:   {{ (p.cpf or p.cnpj or '') | tojson }},
+    label: {{ (p.cpf or p.cnpj or '') | tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+const busca     = document.getElementById('pessoa-busca');
+const hiddenId  = document.getElementById('id_pessoa');
+const dropdown  = document.getElementById('pessoa-dropdown');
+const selecionada = document.getElementById('pessoa-selecionada');
+const clearBtn  = document.getElementById('pessoa-clear');
+
+// Pré-preenche se já há uma pessoa selecionada (edição)
+const preId = hiddenId.value;
+if (preId) {
+  const pre = PESSOAS.find(p => p.id == preId);
+  if (pre) {
+    busca.value = pre.nome;
+    selecionada.textContent = pre.doc ? `${pre.nome} — ${pre.doc}` : pre.nome;
+    selecionada.classList.add('visivel');
+    clearBtn.classList.add('visivel');
+  }
+}
+
+busca.addEventListener('input', function () {
+  const q = this.value.trim().toLowerCase();
+  clearBtn.classList.toggle('visivel', q.length > 0);
+
+  if (q.length < 1) {
+    dropdown.classList.remove('aberto');
+    return;
+  }
+
+  const qDigits = q.replace(/\D/g, '');
+  const matches = PESSOAS.filter(p => {
+    const docDigits = p.doc.replace(/\D/g, '');
+    return p.nome.toLowerCase().includes(q)
+      || p.doc.toLowerCase().includes(q)
+      || (qDigits.length >= 3 && docDigits.includes(qDigits));
+  }).slice(0, 8);
+
+  if (matches.length === 0) {
+    dropdown.innerHTML = '<div class="dropdown-item sem-resultado">Nenhuma pessoa encontrada.</div>';
+  } else {
+    dropdown.innerHTML = matches.map(p =>
+      `<div class="dropdown-item" data-id="${p.id}" data-nome="${p.nome}" data-doc="${p.doc}">
+        ${p.nome}${p.doc ? `<span class="doc">${p.doc}</span>` : ''}
+      </div>`
+    ).join('');
+
+    dropdown.querySelectorAll('.dropdown-item[data-id]').forEach(el => {
+      el.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        selecionarPessoa(this.dataset.id, this.dataset.nome, this.dataset.doc);
+      });
+    });
+  }
+
+  dropdown.classList.add('aberto');
+});
+
+function selecionarPessoa(id, nome, doc) {
+  hiddenId.value  = id;
+  busca.value     = nome;
+  selecionada.textContent = doc ? `${nome} — ${doc}` : nome;
+  selecionada.classList.add('visivel');
+  clearBtn.classList.add('visivel');
+  dropdown.classList.remove('aberto');
+}
+
+clearBtn.addEventListener('click', function () {
+  busca.value = '';
+  hiddenId.value = '';
+  selecionada.classList.remove('visivel');
+  clearBtn.classList.remove('visivel');
+  dropdown.classList.remove('aberto');
+  busca.focus();
+});
+
+busca.addEventListener('blur', function () {
+  setTimeout(() => dropdown.classList.remove('aberto'), 150);
+});
+
+// ── Checkbox highlight ─────────────────────────────────────────────────────
+function toggleMarcado(cb) {
+  cb.closest('.tipo-check').classList.toggle('marcado', cb.checked);
+}
+
+// ── Modal rápido de cadastro de domínio ───────────────────────────────────
+let _modalCallback = null;
+let _modalChave    = null;
+
+function abrirModal(chave, titulo, callback) {
+  _modalChave    = chave;
+  _modalCallback = callback;
+  document.getElementById('modal-titulo').textContent = titulo;
+  document.getElementById('modal-input').value = '';
+  document.getElementById('modal-erro').style.display = 'none';
+  document.getElementById('modal-rapido').style.display = 'flex';
+  document.getElementById('modal-input').focus();
+}
+
+function fecharModal() {
+  document.getElementById('modal-rapido').style.display = 'none';
+}
+
+document.getElementById('modal-cancelar').addEventListener('click', fecharModal);
+document.getElementById('modal-rapido').addEventListener('click', function(e) {
+  if (e.target === this) fecharModal();
+});
+
+document.getElementById('modal-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); salvarRapido(); }
+  if (e.key === 'Escape') fecharModal();
+});
+
+document.getElementById('modal-salvar').addEventListener('click', salvarRapido);
+
+async function salvarRapido() {
+  const descricao = document.getElementById('modal-input').value.trim();
+  const erroEl    = document.getElementById('modal-erro');
+  if (!descricao) {
+    erroEl.textContent = 'Digite uma descrição.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('modal-salvar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  try {
+    const url  = "{{ url_for('tabelas.novo_rapido', chave='__CHAVE__') }}"
+                   .replace('__CHAVE__', _modalChave);
+    const resp = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ descricao })
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      erroEl.textContent = data.erro || 'Erro ao salvar.';
+      erroEl.style.display = 'block';
+    } else if (data.duplicata) {
+      erroEl.textContent = 'Já existe — selecionando o existente.';
+      erroEl.style.display = 'block';
+      setTimeout(() => { _modalCallback(data.id, data.descricao); fecharModal(); }, 1200);
+    } else {
+      _modalCallback(data.id, data.descricao);
+      fecharModal();
+    }
+  } catch {
+    erroEl.textContent = 'Erro de conexão.';
+    erroEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Salvar';
+  }
+}
+
+function adicionarTipoCheckbox(id, descricao) {
+  const grid = document.querySelector('.tipos-grid');
+  const label = document.createElement('label');
+  label.className = 'tipo-check marcado';
+  label.innerHTML = `<input type="checkbox" name="servicos" value="${id}" checked
+                            onchange="toggleMarcado(this)"> ${descricao}`;
+  grid.appendChild(label);
+}
+
+// ── Validação client-side antes do submit ──────────────────────────────────
+document.getElementById('form-atendimento').addEventListener('submit', function (e) {
+  const marcados = document.querySelectorAll('input[name="servicos"]:checked');
+  const erroEl   = document.getElementById('tipos-erro');
+
+  if (marcados.length === 0) {
+    e.preventDefault();
+    erroEl.classList.add('visivel');
+    erroEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  erroEl.classList.remove('visivel');
+
+  if (!hiddenId.value) {
+    e.preventDefault();
+    busca.style.borderColor = '#dc3545';
+    busca.focus();
+  }
+});
+</script>
+{% endblock %}

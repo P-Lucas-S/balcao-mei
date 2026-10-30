@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+{% block titulo %}Dashboard — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Dashboard{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+{% endblock %}
+
+{% block conteudo %}
+
+{# Filtro por usuário — visível apenas para administrador e supervisor #}
+{% if current_user.perfil.nome in ['administrador', 'supervisor'] %}
+<div style="display:flex; gap:8px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+  <span style="font-size:0.8rem; font-weight:600; color:var(--texto-suave); text-transform:uppercase; letter-spacing:0.5px;">
+    Visualizando:
+  </span>
+  <select class="select-filtro-usuario"
+          onchange="window.location.href=this.value"
+          aria-label="Filtrar por usuário">
+    <option value="{{ url_for('main.dashboard') }}"
+            {% if not filtro_usuario_id %}selected{% endif %}>Todos</option>
+    {% for u in usuarios_filtro %}
+    <option value="{{ url_for('main.dashboard', filtro_usuario=u.id) }}"
+            {% if filtro_usuario_id == u.id %}selected{% endif %}>{{ u.nome }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endif %}
+
+{# ── Cards de resumo (3 cards) ───────────────────────────────────────────── #}
+<h2 class="secao-titulo-dash">Resumo Geral</h2>
+<div class="cards-grid">
+  {# Card Cadastros — visível para todos os perfis #}
+  <div class="card-resumo">
+    <div class="card-icon icon-pessoas" aria-hidden="true">&#128100;</div>
+    <div class="card-info">
+      <div class="card-valor">{{ total_pessoas }}</div>
+      <div class="card-label">Cadastros</div>
+    </div>
+  </div>
+
+  {# Card mês atual com variação proporcional vs mês anterior #}
+  <div class="card-resumo">
+    <div class="card-icon icon-atend" aria-hidden="true">&#128222;</div>
+    <div class="card-info">
+      <div class="card-valor">{{ atend_mes_atual }}</div>
+      <div class="card-label">Atendimentos em {{ mes_atual }} (até hoje)</div>
+      {% if variacao_proporcional is not none %}
+        <div class="variacao {% if variacao_proporcional > 0 %}alta{% elif variacao_proporcional < 0 %}baixa{% else %}neutro{% endif %}">
+          {% if variacao_proporcional > 0 %}&#9650; +{{ variacao_proporcional }}%
+          {% elif variacao_proporcional < 0 %}&#9660; {{ variacao_proporcional }}%
+          {% else %}&#9644; sem variação{% endif %}
+          vs {{ mes_ant_nome }} ({{ dias_passados }} dias)
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Card hoje — visível para todos os perfis #}
+  <div class="card-resumo">
+    <div class="card-icon icon-hoje" aria-hidden="true">&#9201;</div>
+    <div class="card-info">
+      <div class="card-valor">{{ atend_hoje }}</div>
+      <div class="card-label">Atendimentos hoje</div>
+    </div>
+  </div>
+</div>
+
+{# ── Cards por status de solicitação ────────────────────────────────────── #}
+<h2 class="secao-titulo-dash">Solicitações por Status</h2>
+<div class="status-grid">
+  {% for descricao, dados in solic_por_status.items() %}
+  {% set st = descricao | lower %}
+  <a href="{{ url_for('solicitacoes.index', status=dados.id) }}"
+     class="card-status
+    {%- if 'pendente'  in st %} st-pendente
+    {%- elif 'an' in st %}      st-analise
+    {%- elif 'aprovado' in st %} st-aprovado
+    {%- elif 'recusado' in st %} st-recusado
+    {%- else %} st-default{%- endif %}"
+     style="text-decoration:none; cursor:pointer;">
+    <div class="st-valor">{{ dados.total }}</div>
+    <div class="st-label">{{ descricao }}</div>
+  </a>
+  {% endfor %}
+</div>
+
+{# ── Alerta de pendências de exclusão (admin) ────────────────────────── #}
+{% if current_user.perfil.nome == 'administrador' and pendencias_count > 0 %}
+<div style="background:#fef3c7; border:1px solid #f59e0b;
+            border-left:4px solid #f59e0b; border-radius:8px;
+            padding:12px 16px; margin-bottom:20px;
+            display:flex; justify-content:space-between;
+            align-items:center;">
+  <span style="font-size:0.88rem; color:#92400e; font-weight:600;">
+    &#9203; {{ pendencias_count }} solicitação(ões) de exclusão aguardando análise
+  </span>
+  <a href="{{ url_for('pendencias.index') }}"
+     class="btn btn-outline"
+     style="font-size:0.82rem; border-color:#f59e0b; color:#92400e;">
+    Revisar →
+  </a>
+</div>
+{% endif %}
+
+{# ── Alerta de solicitações paradas ─────────────────────────────────── #}
+{% if solic_paradas %}
+<div class="alerta-paradas"
+     role="region"
+     aria-label="Alertas: solicitações paradas há mais de 30 dias">
+  <div class="alerta-paradas-header">
+    <span class="alerta-paradas-titulo">
+      <span aria-hidden="true">⚠️</span> {{ qtd_paradas }} solicitação(ões) parada(s) há mais de 30 dias{% if pct_paradas %} — {{ pct_paradas }}% do total pendente{% endif %}
+    </span>
+    <a href="{{ url_for('solicitacoes.index') }}"
+       class="btn btn-outline btn-outline-aviso">
+      Ver todas ›
+    </a>
+  </div>
+  <div class="alerta-paradas-lista">
+    {% for s in solic_paradas %}
+    {% set dias = (hoje - s.data_solicitacao).days %}
+    {% set st = s.status.descricao | lower %}
+    <div class="alerta-paradas-item">
+      <div class="alerta-paradas-info">
+        <span class="badge-status
+          {%- if 'pendente' in st %} s-pendente
+          {%- elif 'an' in st %}     s-analise
+          {%- else %} s-default{%- endif %}">
+          {{ s.status.descricao }}
+        </span>
+        <a href="{{ url_for('solicitacoes.detalhe', id=s.id) }}"
+           class="alerta-paradas-nome">
+          {{ s.pessoa.nome_razao_social }}
+        </a>
+        <span class="alerta-paradas-tipo">
+          {{ s.tipo_solicitacao.descricao }}
+        </span>
+      </div>
+      <span class="alerta-paradas-dias">{{ dias }} dias</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# Alerta preventivo: solicitações se aproximando de 30 dias — visível para todos #}
+{% if solic_quase_paradas > 0 %}
+<div class="alerta-preventivo">
+  <span aria-hidden="true">⏳</span>
+  <strong>{{ solic_quase_paradas }}</strong> solicitação(ões) completarão 30 dias sem atualização nos próximos 3 dias.
+</div>
+{% endif %}
+
+{# ── Gráfico anual + Top atendentes ─────────────────────────────────── #}
+<h2 class="secao-titulo-dash">Evolução {{ ano_atual }}</h2>
+<div class="secoes-grid {% if current_user.perfil.nome not in ['administrador', 'supervisor'] %}secoes-grid--unica{% endif %}">
+
+  {# Gráfico de barras mensal #}
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo"><span aria-hidden="true">&#128202;</span> Atendimentos por Mês</span>
+    </div>
+    <div class="secao-corpo">
+      <canvas id="grafico-anual" style="max-height:220px;" role="img"
+              aria-label="Gráfico de barras: atendimentos por mês em {{ ano_atual }}"></canvas>
+    </div>
+  </div>
+
+  {# Top atendentes — visível para administrador e supervisor #}
+  {% if current_user.perfil.nome in ['administrador', 'supervisor'] %}
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo">
+        <span aria-hidden="true">&#127942;</span> Top Atendentes
+        <small style="font-weight:400; color:var(--texto-suave); font-size:0.78rem; margin-left:4px;">
+          Jan–{{ mes_atual_abrev }} de {{ ano_atual }}
+        </small>
+      </span>
+    </div>
+    <div class="secao-corpo">
+      {% set max_total = top_atendentes[0].total if top_atendentes else 1 %}
+      {% for a in top_atendentes %}
+      <div class="atendente-item">
+        <div class="atendente-row">
+          <span class="atendente-nome">
+            <span aria-hidden="true">{% if loop.index == 1 %}&#129351;{% elif loop.index == 2 %}&#129352;{% else %}&#129353;{% endif %}</span>
+            {{ a.nome }}
+          </span>
+          <span class="atendente-total">
+            {{ a.total }}
+            <small style="font-weight:400; color:var(--texto-suave); font-size:0.72rem;">
+              (média: {{ (a.total / meses_passados_no_ano)|round(1) }}/mês)
+            </small>
+          </span>
+        </div>
+        <div class="barra"
+             role="progressbar"
+             aria-valuenow="{{ ((a.total / max_total) * 100)|int }}"
+             aria-valuemin="0"
+             aria-valuemax="100"
+             aria-label="{{ a.nome }}: {{ a.total }} atendimento(s)">
+          <div class="barra-fill" style="--pct: {{ (a.total / max_total)|round(4) }};"></div>
+        </div>
+      </div>
+      {% else %}
+      <p class="atendente-empty">Nenhum atendimento registrado em {{ ano_atual }}.</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Novos Cadastros por Mês (admin only) ───────────────────────────────── #}
+{% if current_user.perfil.nome == 'administrador' %}
+<h2 class="secao-titulo-dash">Novos Cadastros — {{ ano_atual }}</h2>
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">
+      <span aria-hidden="true">&#128100;</span> Novos Cadastros por Mês
+    </span>
+  </div>
+  <div class="secao-corpo">
+    <canvas id="grafico-cadastros" style="max-height:220px;" role="img"
+            aria-label="Gráfico de linha: novos cadastros por mês em {{ ano_atual }}"></canvas>
+  </div>
+</div>
+{% endif %}
+
+{# ── Listas recentes ─────────────────────────────────────────────────────── #}
+<h2 class="secao-titulo-dash">Atividade Recente</h2>
+
+<div class="dash-acoes">
+  <a href="{{ url_for('atendimentos.iniciar') }}"
+     class="btn btn-primary btn-acento"
+     style="background:var(--cor-sucesso);">
+    <span aria-hidden="true">&#127919;</span> Iniciar Atendimento
+  </a>
+  <a href="{{ url_for('atendimentos.rapido') }}"
+     class="btn btn-primary btn-acento">
+    <span aria-hidden="true">&#9889;</span> Atendimento Rápido
+  </a>
+  <a href="{{ url_for('solicitacoes.index', usuario=current_user.id) }}"
+     class="btn btn-outline"
+     style="color:var(--cor-aviso); border-color:var(--cor-aviso); position:relative;">
+    <span aria-hidden="true">&#128203;</span> Minha Fila
+    {% if minhas_pendencias > 0 %}
+    <span style="position:absolute; top:-6px; right:-6px;
+                 background:var(--cor-aviso); color:white;
+                 font-size:0.65rem; font-weight:700;
+                 width:18px; height:18px; border-radius:50%;
+                 display:flex; align-items:center; justify-content:center;">
+      {{ minhas_pendencias }}
+    </span>
+    {% endif %}
+  </a>
+</div>
+
+<div class="secoes-grid">
+
+  {# Atendimentos recentes #}
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo"><span aria-hidden="true">&#128222;</span> Atendimentos Recentes</span>
+      <a href="{{ url_for('atendimentos.index') }}" class="ver-todos" aria-label="Ver todos os atendimentos">Ver todos ›</a>
+    </div>
+    {% if atendimentos_recentes %}
+    <ul class="lista-recente">
+      {% for a in atendimentos_recentes %}
+      <li class="lista-item">
+        <div class="item-principal">
+          <a href="{{ url_for('atendimentos.detalhe', id=a.id) }}" class="item-nome">
+            {{ a.pessoa.nome_razao_social }}
+          </a>
+          <span class="item-data">{{ a.data_atendimento.strftime('%d/%m/%Y') }}</span>
+        </div>
+        <div class="item-sub">
+          <span>{{ a.usuario.nome }}</span>
+          {% for at in a.tipos %}
+            <span class="tipo-tag">{{ at.servico.descricao }}</span>
+          {% endfor %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-lista">Nenhum atendimento registrado.</div>
+    {% endif %}
+  </div>
+
+  {# Solicitações recentes #}
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo"><span aria-hidden="true">&#128203;</span> Solicitações Recentes</span>
+      <a href="{{ url_for('solicitacoes.index') }}" class="ver-todos" aria-label="Ver todas as solicitações">Ver todas ›</a>
+    </div>
+    {% if solicitacoes_recentes %}
+    <ul class="lista-recente">
+      {% for s in solicitacoes_recentes %}
+      {% set st = s.status.descricao | lower %}
+      <li class="lista-item">
+        <div class="item-principal">
+          <a href="{{ url_for('solicitacoes.detalhe', id=s.id) }}" class="item-nome">
+            {{ s.pessoa.nome_razao_social }}
+          </a>
+          <span class="item-data">{{ s.data_solicitacao.strftime('%d/%m/%Y') }}</span>
+        </div>
+        <div class="item-sub">
+          <span>{{ s.tipo_solicitacao.descricao }}</span>
+          <span class="badge-status
+            {%- if 'pendente'  in st %} s-pendente
+            {%- elif 'an' in st %}      s-analise
+            {%- elif 'aprovado' in st %} s-aprovado
+            {%- elif 'recusado' in st %} s-recusado
+            {%- else %} s-default{%- endif %}">
+            {{ s.status.descricao }}
+          </span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-lista">Nenhuma solicitação registrada.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Funil de Conversão ──────────────────────────────────────────────────── #}
+<h2 class="secao-titulo-dash">Funil de Conversão</h2>
+<div class="secao-card">
+  <div class="secao-corpo">
+    <div style="display:flex; align-items:stretch; gap:0; flex-wrap:wrap;">
+
+      {# Etapa 1 — Cadastrados #}
+      <div style="flex:1; min-width:160px; padding:16px 20px;
+                  border-right:1px solid var(--borda); text-align:center;">
+        <div style="font-size:2rem; font-weight:800; color:var(--cor-primaria);
+                    line-height:1; margin-bottom:6px;">
+          {{ total_cadastrados }}
+        </div>
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+                    letter-spacing:0.6px; color:var(--texto-suave); margin-bottom:12px;">
+          Cadastrados
+        </div>
+        <div style="height:6px; border-radius:3px; background:var(--borda); overflow:hidden;">
+          <div style="height:100%; width:100%; border-radius:3px;
+                      background:var(--cor-primaria);"></div>
+        </div>
+        <div style="font-size:0.72rem; color:var(--texto-suave); margin-top:5px;">
+          base 100%
+        </div>
+      </div>
+
+      {# Seta #}
+      <div style="display:flex; align-items:center; padding:0 8px;
+                  color:var(--texto-suave); font-size:1.1rem; flex-shrink:0;">
+        &#8594;
+      </div>
+
+      {# Etapa 2 — Com Atendimento #}
+      <div style="flex:1; min-width:160px; padding:16px 20px;
+                  border-right:1px solid var(--borda); text-align:center;">
+        <div style="font-size:2rem; font-weight:800; color:var(--cor-primaria);
+                    line-height:1; margin-bottom:6px;">
+          {{ total_com_atendimento }}
+        </div>
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+                    letter-spacing:0.6px; color:var(--texto-suave); margin-bottom:12px;">
+          Com Atendimento
+        </div>
+        <div style="height:6px; border-radius:3px; background:var(--borda); overflow:hidden;"
+             role="progressbar"
+             aria-valuenow="{{ pct_atendimento }}" aria-valuemin="0" aria-valuemax="100"
+             aria-label="{{ pct_atendimento }}% dos cadastrados receberam atendimento">
+          <div style="height:100%; width:{{ pct_atendimento }}%; border-radius:3px;
+                      background:var(--cor-acento);
+                      transition:width 0.6s ease;"></div>
+        </div>
+        <div style="font-size:0.72rem; color:var(--texto-suave); margin-top:5px;">
+          {{ pct_atendimento }}% dos cadastrados
+        </div>
+      </div>
+
+      {# Seta #}
+      <div style="display:flex; align-items:center; padding:0 8px;
+                  color:var(--texto-suave); font-size:1.1rem; flex-shrink:0;">
+        &#8594;
+      </div>
+
+      {# Etapa 3 — Com Solicitação #}
+      <div style="flex:1; min-width:160px; padding:16px 20px;
+                  border-right:1px solid var(--borda); text-align:center;">
+        <div style="font-size:2rem; font-weight:800; color:var(--cor-primaria);
+                    line-height:1; margin-bottom:6px;">
+          {{ total_com_solicitacao }}
+        </div>
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+                    letter-spacing:0.6px; color:var(--texto-suave); margin-bottom:12px;">
+          Com Solicitação
+        </div>
+        <div style="height:6px; border-radius:3px; background:var(--borda); overflow:hidden;"
+             role="progressbar"
+             aria-valuenow="{{ pct_solicitacao }}" aria-valuemin="0" aria-valuemax="100"
+             aria-label="{{ pct_solicitacao }}% dos cadastrados têm solicitação">
+          <div style="height:100%; width:{{ pct_solicitacao }}%; border-radius:3px;
+                      background:var(--cor-teal);
+                      transition:width 0.6s ease;"></div>
+        </div>
+        <div style="font-size:0.72rem; color:var(--texto-suave); margin-top:5px;">
+          {{ pct_solicitacao }}% dos cadastrados
+        </div>
+      </div>
+
+      {# Seta #}
+      <div style="display:flex; align-items:center; padding:0 8px;
+                  color:var(--texto-suave); font-size:1.1rem; flex-shrink:0;">
+        &#8594;
+      </div>
+
+      {# Etapa 4 — Aprovadas #}
+      <div style="flex:1; min-width:160px; padding:16px 20px; text-align:center;">
+        <div style="font-size:2rem; font-weight:800; color:var(--cor-sucesso);
+                    line-height:1; margin-bottom:6px;">
+          {{ total_aprovadas }}
+        </div>
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+                    letter-spacing:0.6px; color:var(--texto-suave); margin-bottom:12px;">
+          Aprovadas
+        </div>
+        <div style="height:6px; border-radius:3px; background:var(--borda); overflow:hidden;"
+             role="progressbar"
+             aria-valuenow="{{ pct_aprovadas }}" aria-valuemin="0" aria-valuemax="100"
+             aria-label="{{ pct_aprovadas }}% dos cadastrados têm solicitação aprovada">
+          <div style="height:100%; width:{{ pct_aprovadas }}%; border-radius:3px;
+                      background:var(--cor-sucesso);
+                      transition:width 0.6s ease;"></div>
+        </div>
+        <div style="font-size:0.72rem; color:var(--texto-suave); margin-top:5px;">
+          {{ pct_aprovadas }}% dos cadastrados
+        </div>
+      </div>
+
+    </div>
+    <p style="font-size:0.72rem; color:var(--texto-suave); margin:12px 0 0;
+              font-style:italic;">
+      Tendências acumuladas. Dados filtrados pelo seu perfil de acesso.
+    </p>
+  </div>
+</div>
+
+{# ── Top 5 Bairros ───────────────────────────────────────────────────────── #}
+{% if top_bairros %}
+<h2 class="secao-titulo-dash">Top 5 Bairros</h2>
+<div class="secao-card">
+  <div class="secao-corpo">
+    {% set max_b = top_bairros[0].total %}
+    {% for b in top_bairros %}
+    <div class="atendente-item">
+      <div class="atendente-row">
+        <span class="atendente-nome">
+          <span aria-hidden="true" style="color:var(--texto-suave); font-size:0.75rem;">
+            {{ loop.index }}&#46;
+          </span>
+          {{ b.bairro }}
+        </span>
+        <span class="atendente-total">{{ b.total }}</span>
+      </div>
+      <div class="barra"
+           role="progressbar"
+           aria-valuenow="{{ b.total }}"
+           aria-valuemin="0"
+           aria-valuemax="{{ max_b }}"
+           aria-label="{{ b.bairro }}: {{ b.total }} empreendedor(es)">
+        <div class="barra-fill"
+             style="--pct: {{ (b.total / max_b) | round(4) if max_b > 0 else 0 }};
+                    background:var(--cor-teal);"></div>
+      </div>
+    </div>
+    {% endfor %}
+    <p style="font-size:0.72rem; color:var(--texto-suave); margin:10px 0 0;
+              font-style:italic;">
+      Empreendedores únicos por bairro, nos atendimentos registrados.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const meses = ['Jan','Fev','Mar','Abr','Mai','Jun',
+                'Jul','Ago','Set','Out','Nov','Dez'];
+const dados  = {{ grafico_meses | tojson }};
+
+function initGrafico(el) {
+  const corPrimaria = getComputedStyle(document.documentElement)
+    .getPropertyValue('--cor-primaria').trim() || '#0f4c5c';
+  new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: meses,
+      datasets: [{
+        label: 'Atendimentos',
+        data: dados,
+        backgroundColor: corPrimaria,
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 10 } } }
+    }
+  });
+}
+
+const graficoEl = document.getElementById('grafico-anual');
+if (graficoEl) {
+  if ('IntersectionObserver' in window) {
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        obs.disconnect();
+        initGrafico(graficoEl);
+      }
+    }, { threshold: 0.1 });
+    obs.observe(graficoEl);
+  } else {
+    initGrafico(graficoEl);
+  }
+}
+
+{% if current_user.perfil.nome == 'administrador' %}
+const dadosCadastros  = {{ grafico_cadastros | tojson }};
+const cadastrosEl = document.getElementById('grafico-cadastros');
+if (cadastrosEl) {
+  const initCadastros = (el) => {
+    const corTeal = getComputedStyle(document.documentElement)
+      .getPropertyValue('--cor-teal').trim() || '#00bcd4';
+    new Chart(el, {
+      type: 'line',
+      data: {
+        labels: meses,
+        datasets: [{
+          label: 'Novos Cadastros',
+          data: dadosCadastros,
+          borderColor: corTeal,
+          backgroundColor: corTeal + '22',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: corTeal,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+      }
+    });
+  };
+  if ('IntersectionObserver' in window) {
+    const obsCad = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) { obsCad.disconnect(); initCadastros(cadastrosEl); }
+    }, { threshold: 0.1 });
+    obsCad.observe(cadastrosEl);
+  } else {
+    initCadastros(cadastrosEl);
+  }
+}
+{% endif %}
+</script>
+{% endblock %}

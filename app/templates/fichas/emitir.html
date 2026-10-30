@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+{% block titulo %}Emitir Requerimento — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Emitir Requerimento{% endblock %}
+
+{% block estilos %}
+<style>
+.emissao-identificacao {
+  background: var(--bg-card);
+  border: 1px solid var(--borda);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+.emissao-identificacao .sol-ref {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texto-suave);
+  margin-bottom: 4px;
+}
+.emissao-identificacao .sol-pessoa {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--texto-principal);
+}
+.emissao-identificacao .sol-meta {
+  font-size: 0.82rem;
+  color: var(--texto-secundario);
+  margin-top: 4px;
+}
+
+.modos-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+@media (max-width: 768px) {
+  .modos-grid { grid-template-columns: 1fr; }
+}
+
+.modo-card {
+  background: var(--bg-card);
+  border: 2px solid var(--borda);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.modo-card:hover {
+  border-color: var(--cor-acento);
+  box-shadow: 0 4px 16px rgba(124,58,237,0.10);
+}
+.modo-card.destaque {
+  border-color: var(--cor-primaria);
+  background: var(--cor-acento-claro);
+}
+.modo-icone {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+.modo-titulo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--texto-principal);
+}
+.modo-desc {
+  font-size: 0.80rem;
+  color: var(--texto-secundario);
+  line-height: 1.5;
+  flex: 1;
+}
+
+.historico-card {
+  background: var(--bg-card);
+  border: 1px solid var(--borda);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.historico-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--borda);
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--texto-principal);
+}
+.historico-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.historico-table th {
+  background: var(--bg-pagina);
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+  border-bottom: 1px solid var(--borda);
+}
+.historico-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--borda);
+  vertical-align: middle;
+}
+.historico-table tr:last-child td { border-bottom: none; }
+
+.badge-modo {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.70rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.modo-digital   { background: var(--cor-primaria-claro); color: var(--cor-primaria); }
+.modo-assistido { background: #e0f2fe; color: #0369a1; }
+.modo-manual    { background: var(--bg-neutro); color: var(--texto-secundario); }
+
+.btn-template {
+  padding: 4px 12px;
+  border: 1px solid var(--cor-primaria);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--cor-primaria);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-template:hover { background: var(--cor-primaria); color: white; }
+.btn-template--limpar { border-color: var(--cor-perigo); color: var(--cor-perigo); }
+.btn-template--limpar:hover { background: var(--cor-perigo); color: white; }
+</style>
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="page-actions">
+  <a href="{{ url_for('solicitacoes.detalhe', id=sol.id) }}" class="btn btn-back">
+    &#8592; Solicitação #{{ sol.id }}
+  </a>
+</div>
+
+{# ── Identificação ── #}
+<div class="emissao-identificacao">
+  <div class="sol-ref">Solicitação #{{ sol.id }}</div>
+  <div class="sol-pessoa">{{ sol.pessoa.nome_razao_social }}</div>
+  <div class="sol-meta">
+    {{ sol.tipo_solicitacao.descricao }}
+    {% if sol.pessoa.cpf %} · CPF {{ sol.pessoa.cpf }}
+    {% elif sol.pessoa.cnpj %} · CNPJ {{ sol.pessoa.cnpj }}{% endif %}
+    {% if sol.pessoa.telefone %} · {{ sol.pessoa.telefone }}{% endif %}
+  </div>
+</div>
+
+{# ── 3 Modos ── #}
+<div class="modos-grid">
+
+  {# DIGITAL — destaque máximo #}
+  <div class="modo-card destaque">
+    <div class="modo-icone">&#128196;</div>
+    <div class="modo-titulo">Digital</div>
+    <div class="modo-desc">
+      Atendente preenche a justificativa no sistema.
+      PDF completo gerado automaticamente.
+    </div>
+    <button type="button" class="btn btn-primary"
+            onclick="abrirModalDigital()">
+      &#128196; Emitir Digital
+    </button>
+  </div>
+
+  {# ASSISTIDO #}
+  <div class="modo-card">
+    <div class="modo-icone">&#9997;&#65039;</div>
+    <div class="modo-titulo">Assistido</div>
+    <div class="modo-desc">
+      PDF com dados básicos já preenchidos.
+      Empreendedor completa a justificativa à mão.
+    </div>
+    <form method="POST"
+          action="{{ url_for('fichas.emitir_assistido', sol_id=sol.id) }}"
+          target="_blank"
+          id="form-assistido">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline" style="width:100%;">
+        &#9997;&#65039; Emitir Assistido
+      </button>
+    </form>
+  </div>
+
+  {# MANUAL #}
+  <div class="modo-card">
+    <div class="modo-icone">&#128203;</div>
+    <div class="modo-titulo">Manual</div>
+    <div class="modo-desc">
+      Documento já preenchido fora do sistema.
+      Registra apenas para fins de auditoria.
+    </div>
+    <button type="button" class="btn btn-secondary"
+            onclick="abrirModalManual()">
+      &#128203; Registrar Manual
+    </button>
+  </div>
+
+</div>
+
+{# ── Histórico de emissões ── #}
+<div class="historico-card">
+  <div class="historico-header">Histórico de Emissões</div>
+  {% if historico %}
+  <table class="historico-table">
+    <thead>
+      <tr>
+        <th>Protocolo</th>
+        <th>Modo</th>
+        <th>Data</th>
+        <th>Emitido por</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in historico %}
+      <tr>
+        <td style="font-weight:600; font-family:monospace;">{{ r.protocolo }}</td>
+        <td>
+          <span class="badge-modo modo-{{ r.modo_emissao or 'digital' }}">
+            {{ r.modo_emissao or 'digital' }}
+          </span>
+        </td>
+        <td style="white-space:nowrap; color:var(--texto-suave);">
+          {{ r.created_at.strftime('%d/%m/%Y %H:%M') }}
+        </td>
+        <td>{{ r.usuario.nome if r.usuario else '—' }}</td>
+        <td>
+          {% if r.modo_emissao != 'manual' %}
+          <a href="{{ url_for('fichas.baixar_pdf', req_id=r.id) }}"
+             target="_blank"
+             class="btn btn-outline"
+             style="font-size:0.75rem; padding:3px 10px;">
+            &#8681; PDF
+          </a>
+          {% else %}
+          <span style="font-size:0.78rem; color:var(--texto-suave);">
+            {{ r.observacao_manual or '—' }}
+          </span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:24px; text-align:center; color:var(--texto-suave); font-size:0.85rem;">
+    Nenhum requerimento emitido para esta solicitação ainda.
+  </div>
+  {% endif %}
+</div>
+
+{# ── Modal — Modo Digital ── #}
+<div id="modal-digital"
+     style="display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.5); z-index:9999;
+            align-items:center; justify-content:center;">
+  <div style="background:var(--bg-card); border-radius:var(--radius-lg);
+              padding:32px; max-width:640px; width:92%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2); max-height:90vh; overflow-y:auto;">
+    <h3 style="margin:0 0 4px; color:var(--cor-primaria); font-size:1rem;">
+      &#128196; Emissão Digital
+    </h3>
+    <p style="font-size:0.82rem; color:var(--texto-suave); margin:0 0 18px;">
+      Preencha a justificativa e gere o PDF completo.
+    </p>
+
+    <form method="POST"
+          action="{{ url_for('fichas.emitir_digital', sol_id=sol.id) }}"
+          target="_blank"
+          id="form-digital">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {# Botões de modelo #}
+      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">
+        <span style="font-size:0.72rem; color:var(--texto-suave); font-weight:700;
+                     text-transform:uppercase; letter-spacing:0.5px; align-self:center;">
+          Modelos:
+        </span>
+        {% for m in modelos %}
+        <button type="button" class="btn-template"
+                data-texto="{{ m.valor | e }}"
+                onclick="aplicarModeloDigital(this)">
+          {{ m.descricao | replace('Modelo: ', '') }}
+        </button>
+        {% endfor %}
+        <button type="button" class="btn-template btn-template--limpar"
+                onclick="document.getElementById('digital-justificativa').value=''">
+          &#10005; Limpar
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label for="digital-justificativa">Justificativa / Solicitação</label>
+        <textarea name="justificativa" id="digital-justificativa"
+                  rows="6" style="width:100%; resize:vertical;"
+                  placeholder="Descreva a solicitação ou selecione um modelo acima…"></textarea>
+      </div>
+
+      <div class="btn-row" style="margin-top:16px;">
+        <button type="submit" class="btn btn-primary"
+                onclick="fecharModalDigital()">
+          &#128196; Gerar PDF
+        </button>
+        <button type="button" class="btn btn-secondary"
+                onclick="fecharModalDigital()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── Modal — Modo Manual ── #}
+<div id="modal-manual"
+     style="display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.5); z-index:9999;
+            align-items:center; justify-content:center;">
+  <div style="background:var(--bg-card); border-radius:var(--radius-lg);
+              padding:32px; max-width:500px; width:92%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <h3 style="margin:0 0 4px; color:var(--cor-primaria); font-size:1rem;">
+      &#128203; Registrar Emissão Manual
+    </h3>
+    <p style="font-size:0.82rem; color:var(--texto-suave); margin:0 0 18px;">
+      O documento já foi preenchido fisicamente. Apenas registre para fins de auditoria.
+    </p>
+
+    <form method="POST"
+          action="{{ url_for('fichas.emitir_manual', sol_id=sol.id) }}"
+          id="form-manual">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label for="manual-obs">Observação <span class="opcional">(opcional)</span></label>
+        <textarea name="observacao" id="manual-obs"
+                  rows="3" style="width:100%; resize:vertical;"
+                  placeholder="Ex: formulário entregue em mãos na recepção…"></textarea>
+      </div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button type="submit" class="btn btn-primary">&#10003; Registrar</button>
+        <button type="button" class="btn btn-secondary"
+                onclick="fecharModalManual()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Modais ────────────────────────────────────────────────────────────
+function abrirModalDigital() {
+  var m = document.getElementById('modal-digital');
+  m.style.display = 'flex';
+  m.onclick = function(e) { if (e.target === m) fecharModalDigital(); };
+}
+function fecharModalDigital() {
+  document.getElementById('modal-digital').style.display = 'none';
+}
+function abrirModalManual() {
+  var m = document.getElementById('modal-manual');
+  m.style.display = 'flex';
+  m.onclick = function(e) { if (e.target === m) fecharModalManual(); };
+}
+function fecharModalManual() {
+  document.getElementById('modal-manual').style.display = 'none';
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    fecharModalDigital();
+    fecharModalManual();
+  }
+});
+
+// ── Modelos de texto ─────────────────────────────────────────────────
+function aplicarModeloDigital(btn) {
+  document.getElementById('digital-justificativa').value = btn.dataset.texto;
+  document.getElementById('digital-justificativa').focus();
+}
+
+// ── Modo assistido — abrir PDF em nova aba e fechar após submit ───────
+document.getElementById('form-assistido').addEventListener('submit', function() {
+  // Form já tem target=_blank, apenas feedback visual
+  var btn = this.querySelector('button[type="submit"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Gerando…';
+    setTimeout(function() {
+      btn.disabled = false;
+      btn.textContent = '✏️ Emitir Assistido';
+    }, 5000);
+  }
+});
+</script>
+{% endblock %}

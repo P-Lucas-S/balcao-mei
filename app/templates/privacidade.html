@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% block titulo %}Política de Privacidade — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Política de Privacidade{% endblock %}
+
+{% block estilos %}
+<style>
+.priv-hero {
+  text-align: center;
+  padding: 40px 20px 32px;
+}
+.priv-hero-icone {
+  font-size: 3rem;
+  opacity: 0.25;
+  margin-bottom: 12px;
+}
+.priv-hero h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--cor-primaria);
+  margin: 0 0 8px;
+}
+.priv-hero p {
+  font-size: 0.88rem;
+  color: var(--texto-suave);
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+.priv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.priv-card {
+  background: var(--bg-card);
+  border: 1px solid var(--borda);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+.priv-card-full {
+  grid-column: 1 / -1;
+}
+.priv-titulo-secao {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--cor-primaria);
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--cor-primaria-claro);
+}
+.priv-titulo-secao .priv-icone {
+  font-size: 1rem;
+  opacity: 0.7;
+}
+.priv-card p {
+  font-size: 0.88rem;
+  color: var(--texto-secundario);
+  line-height: 1.75;
+  margin: 0 0 10px;
+}
+.priv-card p:last-child { margin: 0; }
+.priv-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.priv-card ul li {
+  font-size: 0.88rem;
+  color: var(--texto-secundario);
+  padding-left: 18px;
+  position: relative;
+  line-height: 1.6;
+}
+.priv-card ul li::before {
+  content: '●';
+  position: absolute;
+  left: 0;
+  color: var(--cor-acento);
+  font-size: 0.5rem;
+  top: 6px;
+}
+.priv-card ul li strong {
+  color: var(--texto-principal);
+  font-weight: 600;
+}
+.priv-destaque {
+  background: var(--cor-primaria-claro);
+  border-left: 4px solid var(--cor-primaria);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-top: 12px;
+}
+.priv-destaque p {
+  font-size: 0.85rem;
+  color: var(--cor-primaria);
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.6;
+}
+.priv-contato-box {
+  background: var(--bg-pagina);
+  border: 1px solid var(--borda);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-top: 12px;
+}
+.priv-contato-box p {
+  font-size: 0.85rem;
+  color: var(--texto-secundario);
+  margin: 0 0 4px;
+}
+.priv-contato-box p:last-child { margin: 0; }
+.priv-contato-box strong {
+  color: var(--texto-principal);
+}
+.priv-data {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+  padding: 20px 0 8px;
+}
+@media (max-width: 768px) {
+  .priv-grid { grid-template-columns: 1fr; }
+  .priv-card-full { grid-column: 1; }
+}
+</style>
+{% endblock %}
+
+{% block conteudo %}
+<div style="max-width: 900px; margin: 0 auto;">
+
+  {# ── Cabeçalho ── #}
+  <div class="priv-hero">
+    <div class="priv-hero-icone">&#128274;</div>
+    <h1>Política de Privacidade</h1>
+    <p>
+      Este documento informa como a <strong>{{ marca.ORG_COMPLETO }}</strong>
+      coleta, usa, armazena e protege os dados pessoais dos empreendedores atendidos,
+      em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).
+    </p>
+  </div>
+
+  <div class="priv-grid">
+
+    {# ── 1. Controlador ── #}
+    <div class="priv-card priv-card-full">
+      <div class="priv-titulo-secao">
+        <span class="priv-icone">&#127970;</span>
+        1. Controlador dos Dados
+      </div>
+      <p>
+        A <strong>{{ marca.ORG_COMPLETO }}</strong>
+        (instituição fictícia desta demonstração),
+        é o controlador dos dados pessoais tratados por este sistema.
+        Ela é a unidade responsável pelo tratamento
+        das informações cadastradas.
+      </p>
+      <div class="priv-destaque">
+        <p>
+          &#9878; <strong>Base legal:</strong> Art. 7º, inciso III da LGPD —
+          tratamento necessário para o <em>exercício regular de função pública</em>
+          pela administração municipal, no âmbito das políticas de apoio ao
+          empreendedorismo local.
+        </p>
+      </div>
+    </div>
+
+    {# ── 2. Dados coletados ── #}
+    <div class="priv-card">
+      <div class="priv-titulo-secao">
+        <span class="priv-icone">&#128196;</span>
+        2. Dados Coletados
+      </div>
+      <p>O sistema trata as seguintes categorias de dados pessoais:</p>
+      <ul>
+        <li><strong>Identificação:</strong> nome completo ou razão social, data de nascimento, sexo</li>
+        <li><strong>Documentos:</strong> CPF, CNPJ, RG, inscrição estadual</li>
+        <li><strong>Contato:</strong> endereço, CEP, bairro, telefone, e-mail, Instagram</li>
+        <li><strong>Situação empresarial:</strong> CNAE, porte, situação cadastral na Receita Federal, MEI, Simples Nacional</li>
+        <li><strong>Perfil socioeconômico:</strong> escolaridade, renda familiar, número de membros da família, número de funcionários, faturamento estimado</li>
+        <li><strong>Documentos digitalizados:</strong> arquivos enviados como comprovante de endereço, RG/CNH e outros documentos de suporte</li>
+        <li><strong>Registro de atendimentos:</strong> data, hora, serviço prestado, observações do atendente</li>
+        <li><strong>Registro de solicitações:</strong> tipo de solicitação, status e histórico de acompanhamento</li>
+      </ul>
+    </div>
+
+    {# ── 3. Finalidade ── #}
+    <div class="priv-card">
+      <div class="priv-titulo-secao">
+        <span class="priv-icone">&#127919;</span>
+        3. Finalidade do Tratamento
+      </div>
+      <p>Os dados são coletados exclusivamente para:</p>
+      <ul>
+        <li>Registrar e gerenciar os atendimentos prestados pela {{ marca.ORG_NOME }}</li>
+        <li>Acompanhar o histórico e as solicitações dos empreendedores cadastrados</li>
+        <li>Emitir requerimentos e documentos de suporte ao empreendedor</li>
+        <li>Produzir relatórios estatísticos e indicadores de gestão para a gestão</li>
+        <li>Cumprir obrigações legais e prestar contas aos órgãos de controle do município</li>
+      </ul>
+      <p style="margin-top:12px;">
+        Os dados <strong>não são utilizados</strong> para fins comerciais,
+        publicidade, perfilamento automático ou qualquer finalidade alheia
+        à prestação dos serviços da {{ marca.ORG_NOME }}.
+      </p>
+    </div>
+
+    {# ── 4. Quem tem acesso ── #}
+    <div class="priv-card">
+      <div class="priv-titulo-secao">
+        <span class="priv-icone">&#128100;</span>
+        4. Quem Tem Acesso
+      </div>
+      <p>
+        O acesso aos dados é restrito aos servidores e colaboradores da
+        <strong>equipe</strong> que atuam diretamente no atendimento,
+        organizados nos seguintes perfis de acesso:
+      </p>
+      <ul>
+        <li><strong>Atendente:</strong> visualiza e registra apenas seus próprios atendimentos e solicitações</li>
+        <li><strong>Supervisor:</strong> visualiza os atendimentos da equipe sob sua coordenação</li>
+        <li><strong>Administrador:</strong> acesso completo para fins de gestão e auditoria interna</li>
+      </ul>
+      <p style="margin-top:12px;">
+        O sistema <strong>não compartilha dados</strong> com terceiros, parceiros privados
+        ou outros sistemas governamentais sem consentimento expresso do titular,
+        salvo obrigação legal.
+      </p>
+    </div>
+
+    {# ── 5. Retenção ── #}
+    <div class="priv-card">
+      <div class="priv-titulo-secao">
+        <span class="priv-icone">&#128336;</span>
+        5. Retenção dos Dados
+      </div>
+      <p>
+        Os dados pessoais são mantidos pelo tempo necessário ao cumprimento
+        das finalidades descritas nesta política e das obrigações legais
+        aplicáveis à administração pública municipal, observando:
+      </p>
+      <ul>
+        <li>Registros de atendimento e solicitações: mínimo de <strong>5 anos</strong>, conforme tabela de temporalidade documental do município</li>
+        <li>Logs de auditoria (ações no sistema): <strong>2 anos</strong></li>
+        <li>Documentos digitalizados: até a manifestação de exclusão pelo titular, respeitados os prazos legais mínimos</li>
+      </ul>
+      <p style="margin-top:12px;">
+        Após os prazos aplicáveis, os dados são eliminados ou anonimizados,
+        salvo quando sua guarda for obrigatória por lei.
+      </p>
+    </div>
+
+    {# ── 6. Direitos do titular ── #}
+    <div class="priv-card">
+      <div class="priv-titulo-secao">
+        <span class="priv-icone">&#9878;</span>
+        6. Direitos do Titular (Art. 18 da LGPD)
+      </div>
+      <p>
+        O empreendedor cadastrado — na qualidade de titular dos dados — tem
+        os seguintes direitos, que podem ser exercidos a qualquer momento:
+      </p>
+      <ul>
+        <li><strong>Acesso:</strong> saber quais dados estão registrados sobre si</li>
+        <li><strong>Correção:</strong> solicitar a correção de dados incorretos ou desatualizados</li>
+        <li><strong>Exclusão:</strong> solicitar a eliminação de dados desnecessários ou tratados em desconformidade — sujeita a análise do administrador do sistema</li>
+        <li><strong>Confirmação:</strong> saber se seus dados são tratados pelo sistema</li>
+        <li><strong>Portabilidade:</strong> obter seus dados em formato estruturado</li>
+        <li><strong>Informação:</strong> ser informado sobre com quem os dados são compartilhados</li>
+      </ul>
+    </div>
+
+    {# ── 7. Segurança ── #}
+    <div class="priv-card">
+      <div class="priv-titulo-secao">
+        <span class="priv-icone">&#128272;</span>
+        7. Segurança dos Dados
+      </div>
+      <p>
+        O sistema adota medidas técnicas e organizacionais para proteger
+        os dados pessoais contra acesso não autorizado, perda, alteração
+        ou destruição, incluindo:
+      </p>
+      <ul>
+        <li>Autenticação com senha protegida por hash criptográfico</li>
+        <li>Controle de acesso por perfis com permissões diferenciadas</li>
+        <li>Proteção contra CSRF (Cross-Site Request Forgery)</li>
+        <li>Comunicação via HTTPS com certificado SSL</li>
+        <li>Registro de auditoria de todas as ações críticas (login, exclusão, alterações de status)</li>
+        <li>Armazenamento em servidor com acesso físico e lógico restrito</li>
+      </ul>
+    </div>
+
+    {# ── 8. Contato ── #}
+    <div class="priv-card priv-card-full">
+      <div class="priv-titulo-secao">
+        <span class="priv-icone">&#128222;</span>
+        8. Como Exercer Seus Direitos — Contato
+      </div>
+      <p>
+        Para exercer qualquer dos direitos previstos na LGPD, ou para
+        esclarecer dúvidas sobre o tratamento de seus dados, o titular
+        pode entrar em contato diretamente com a {{ marca.ORG_NOME }}:
+      </p>
+      <div class="priv-contato-box">
+        <p><strong>{{ marca.ORG_COMPLETO }}</strong></p>
+        <p>&#128205; Endereço: [endereço fictício]</p>
+        <p>&#128222; Telefone: [telefone]</p>
+        <p>&#128231; E-mail: [e-mail]</p>
+        <p>&#128336; Horário de atendimento: segunda a sexta, das 08h às 17h</p>
+      </div>
+      <p style="margin-top:14px; font-size:0.82rem; color:var(--texto-suave);">
+        Pedidos de acesso, correção ou exclusão de dados serão analisados
+        no prazo de até <strong>15 dias úteis</strong>, conforme previsto na LGPD.
+        A resposta será encaminhada pelo mesmo canal utilizado para o contato.
+      </p>
+    </div>
+
+  </div>{# /priv-grid #}
+
+  <div class="priv-data">
+    Esta política foi atualizada em <strong>maio de 2026</strong>.
+    A {{ marca.ORG_NOME }} se reserva o direito de alterá-la a qualquer momento,
+    comunicando as mudanças por meio deste mesmo endereço.
+  </div>
+
+  <div style="display:flex; justify-content:center; padding-bottom:32px;">
+    <a href="javascript:history.back()" class="btn btn-secondary">
+      &#8592; Voltar
+    </a>
+  </div>
+
+</div>
+{% endblock %}

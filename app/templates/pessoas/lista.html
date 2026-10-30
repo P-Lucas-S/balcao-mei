@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% from "_paginacao.html" import paginacao as render_paginacao %}
+
+{% block titulo %}Cadastros — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Cadastros{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pessoas.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+{% set _fa = filtro_tipo or filtro_especial or filtro_tag %}
+<div class="toolbar">
+  <form class="search-form" method="GET" action="{{ url_for('pessoas.index') }}">
+    <input type="text" name="q" value="{{ q }}"
+           placeholder="Buscar por nome, CPF ou CNPJ…">
+    <button type="submit" class="btn btn-primary">&#128269; Buscar</button>
+    {% if q %}
+    <a href="{{ url_for('pessoas.index') }}" class="btn btn-secondary">&#10005;</a>
+    {% endif %}
+  </form>
+  <button type="button" class="filtros-accordion-btn" id="filtros-btn"
+          onclick="document.getElementById('filtros-corpo').classList.toggle('aberto')"
+          aria-expanded="{{ 'true' if _fa else 'false' }}"
+          aria-controls="filtros-corpo">
+    &#128269; Filtros
+    {% if _fa %}<span class="filtros-badge">&#9679;</span>{% endif %}
+  </button>
+  <a href="{{ url_for('pessoas.nova') }}" class="btn btn-primary">&#43; Novo Cadastro</a>
+  <div class="toolbar-acoes-sec">
+    <a href="{{ url_for('pessoas.exportar_xlsx',
+               q=q, tipo=filtro_tipo, especial=filtro_especial, tag=filtro_tag) }}"
+       class="btn btn-outline btn-exportar">
+      &#128202; Exportar Excel
+    </a>
+    {% if current_user.perfil.nome in ['administrador'] %}
+    <a href="{{ url_for('pessoas.mesclar_busca') }}"
+       class="btn btn-secondary">
+      &#8649; Mesclar Duplicatas
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filtros-accordion-corpo {% if _fa %}aberto{% endif %}" id="filtros-corpo">
+{# M2: Chips de filtro rápido #}
+<div class="chips-filtro">
+  <a href="{{ url_for('pessoas.index', q=q) }}"
+     class="chip {% if not filtro_tipo and not filtro_especial %}chip-ativo{% endif %}">
+    Todos
+  </a>
+  <a href="{{ url_for('pessoas.index', q=q, tipo='PF') }}"
+     class="chip {% if filtro_tipo == 'PF' %}chip-ativo{% endif %}">
+    PF
+  </a>
+  <a href="{{ url_for('pessoas.index', q=q, tipo='MEI') }}"
+     class="chip {% if filtro_tipo == 'MEI' %}chip-ativo{% endif %}">
+    MEI
+  </a>
+  <a href="{{ url_for('pessoas.index', q=q, tipo='PJ') }}"
+     class="chip {% if filtro_tipo == 'PJ' %}chip-ativo{% endif %}">
+    PJ
+  </a>
+  <a href="{{ url_for('pessoas.index', q=q, especial='sem_telefone') }}"
+     class="chip {% if filtro_especial == 'sem_telefone' %}chip-ativo{% endif %}">
+    Sem telefone
+  </a>
+  <a href="{{ url_for('pessoas.index', q=q, especial='sem_atendimento') }}"
+     class="chip {% if filtro_especial == 'sem_atendimento' %}chip-ativo{% endif %}">
+    Sem atendimento recente
+  </a>
+  {% if tags_disponiveis %}
+  <span style="width:1px; background:var(--borda); margin:0 4px; align-self:stretch; display:inline-block;"></span>
+  {% for tag in tags_disponiveis %}
+  <a href="{{ url_for('pessoas.index', q=q, tag=tag.id) }}"
+     class="chip {% if filtro_tag == tag.id %}chip-ativo{% endif %}">
+    &#127991; {{ tag.descricao }}
+  </a>
+  {% endfor %}
+  {% endif %}
+</div>
+</div>{# /filtros-accordion-corpo #}
+
+{% if q %}
+<p class="resultado-info">
+  {{ paginacao.total }} resultado(s) para "<strong>{{ q }}</strong>"
+</p>
+{% endif %}
+
+<div class="card table-to-cards">
+  {% if pessoas %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Nome / Razão Social</th>
+        <th>CPF / CNPJ</th>
+        <th>Telefone</th>
+        <th class="col-email">E-mail</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pessoas %}
+      <tr>
+        <td data-label="#" class="td-mobile-oculto"><span>{{ p.id }}</span></td>
+        <td data-label="Nome">
+          <div style="display:flex; flex-direction:column; gap:3px;
+                      min-width:0; flex:1;">
+            <div style="display:flex; flex-wrap:wrap; align-items:center;
+                        gap:4px; min-width:0;">
+              <a href="{{ url_for('pessoas.detalhe', id=p.id) }}"
+                 class="nome-link"
+                 style="word-break:break-word; min-width:0;">
+                {{ p.nome_razao_social }}
+              </a>
+              {% if p.mei %}<span class="badge-mei">MEI</span>{% endif %}
+              {# M3: badge documentação incompleta #}
+              {% if p.id in ids_doc_incompleta %}
+              <span class="badge-doc-incompleta"
+                    title="Documentação incompleta">📎</span>
+              {% endif %}
+            </div>
+            {# M4: último atendimento com cor por classe CSS #}
+            {% set ultimo = p.atendimentos | sort(attribute='data_atendimento', reverse=True) | first %}
+            {% if ultimo %}
+            {% set dias = (hoje - ultimo.data_atendimento).days %}
+            <div class="ultima-atividade
+              {% if dias <= 30 %}ativ-recente
+              {% elif dias <= 90 %}ativ-media
+              {% else %}ativ-antiga{% endif %}"
+              style="font-size:0.75rem;">
+              Último atend.: {{ ultimo.data_atendimento.strftime('%d/%m/%Y') }}
+              {% if dias == 0 %}(hoje)
+              {% elif dias == 1 %}(ontem)
+              {% elif dias > 90 %}({{ dias }} dias atrás)
+              {% endif %}
+            </div>
+            {% else %}
+            <div class="ultima-atividade ativ-antiga"
+                 style="font-size:0.75rem;">Sem atendimento</div>
+            {% endif %}
+          </div>
+        </td>
+        <td data-label="CPF/CNPJ">
+          <span>
+            {% if p.cnpj %}
+              <span class="badge badge-cnpj">CNPJ {{ p.cnpj }}</span>
+            {% endif %}
+            {% if p.cpf %}
+              <span class="badge badge-cpf">CPF {{ p.cpf }}</span>
+            {% endif %}
+            {% if not p.cpf and not p.cnpj %}
+              —
+            {% endif %}
+          </span>
+        </td>
+        {% if p.telefone %}
+        <td data-label="Telefone"><span>{{ p.telefone }}</span></td>
+        {% else %}
+        <td data-label="Telefone" class="td-mobile-oculto"><span>—</span></td>
+        {% endif %}
+        {% if p.email %}
+        <td data-label="E-mail" class="col-email"><span>{{ p.email }}</span></td>
+        {% else %}
+        <td data-label="E-mail" class="col-email td-mobile-oculto"><span>—</span></td>
+        {% endif %}
+        <td data-label="Ações">
+          <div class="acoes">
+            {# M1: botão Atender rápido #}
+            <a href="{{ url_for('atendimentos.iniciar') }}?pessoa_id={{ p.id }}"
+               class="btn btn-outline"
+               title="Iniciar atendimento para {{ p.nome_razao_social }}">&#127919; Atender</a>
+            <a href="{{ url_for('pessoas.detalhe', id=p.id) }}" class="btn btn-outline">Ver</a>
+            <a href="{{ url_for('pessoas.editar', id=p.id) }}" class="btn btn-outline">Editar</a>
+            {% if current_user.perfil.nome in ['administrador'] %}
+            <button class="btn btn-danger-outline"
+                    data-url="{{ url_for('pessoas.remover', id=p.id) }}"
+                    data-msg="Remover {{ p.nome_razao_social }}?"
+                    onclick="confirmarRemocao(this)">
+              Remover
+            </button>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ render_paginacao(paginacao, 'pessoas.index',
+       q=q, tipo=filtro_tipo, especial=filtro_especial, tag=filtro_tag) }}
+  {% else %}
+  <div class="empty-state">
+    <div>&#128100;</div>
+    {% if q %}
+      <p>Nenhuma pessoa encontrada para "<strong>{{ q }}</strong>".</p>
+    {% else %}
+      <p>Nenhuma pessoa cadastrada ainda.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

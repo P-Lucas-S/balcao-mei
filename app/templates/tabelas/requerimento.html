@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block titulo %}Modelos de Requerimento — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Modelos de Requerimento{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tabelas.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="toolbar">
+  <a href="{{ url_for('tabelas.index') }}" class="btn btn-secondary">&#8592; Parâmetros</a>
+</div>
+
+<p style="font-size:0.84rem; color:var(--texto-suave); margin:0 0 16px;">
+  Textos padrão usados no formulário de requerimento. Edite para adaptar à linguagem da sua prefeitura.
+</p>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <table class="tabela-lista" style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr>
+        <th style="width:20%;">Nome do Modelo</th>
+        <th>Texto atual</th>
+        <th style="width:100px; text-align:center;">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in modelos %}
+      <tr>
+        <td style="font-weight:600; font-size:0.85rem;">
+          {{ m.descricao | replace('Modelo: ', '') }}
+        </td>
+        <td style="font-size:0.82rem; color:var(--texto-suave);">
+          {{ m.valor }}
+        </td>
+        <td style="text-align:center;">
+          <button class="btn btn-outline"
+                  style="font-size:0.78rem; padding:4px 12px;"
+                  data-id="{{ m.id }}"
+                  data-url="{{ url_for('tabelas.editar_requerimento', id=m.id) }}"
+                  data-titulo="{{ m.descricao | replace('Modelo: ', '') | e }}"
+                  data-valor="{{ m.valor | e }}"
+                  onclick="abrirModalReq(this)">
+            &#9998; Editar
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="3" style="text-align:center; color:var(--texto-suave); padding:24px;">
+          Nenhum modelo encontrado.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Modal de edição ── #}
+<div id="modal-editar"
+     style="display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.5); z-index:9999;
+            align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:32px;
+              max-width:620px; width:90%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <h3 id="modal-titulo"
+        style="margin:0 0 16px; color:var(--cor-primaria); font-size:1rem;"></h3>
+    <form method="POST" id="form-editar">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label for="modal-valor">Texto do modelo</label>
+        <textarea name="valor" id="modal-valor"
+                  rows="6"
+                  style="width:100%; resize:vertical;"></textarea>
+        <small style="color:var(--texto-suave);">
+          <span id="modal-contador">0</span> caracteres
+        </small>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary">&#10003; Salvar</button>
+        <button type="button" class="btn btn-secondary"
+                onclick="fecharModalReq()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function abrirModalReq(btn) {
+  var titulo = btn.dataset.titulo;
+  var texto = btn.dataset.valor;
+
+  document.getElementById('modal-titulo').textContent = 'Editar: ' + titulo;
+  document.getElementById('form-editar').action = btn.dataset.url;
+  var ta = document.getElementById('modal-valor');
+  ta.value = texto;
+  document.getElementById('modal-contador').textContent = texto.length;
+  ta.oninput = function() {
+    document.getElementById('modal-contador').textContent = this.value.length;
+  };
+  var modal = document.getElementById('modal-editar');
+  modal.style.display = 'flex';
+  modal.onclick = function(e) {
+    if (e.target === modal) fecharModalReq();
+  };
+}
+function fecharModalReq() {
+  document.getElementById('modal-editar').style.display = 'none';
+}
+</script>
+{% endblock %}

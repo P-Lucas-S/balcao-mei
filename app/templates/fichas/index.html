@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block titulo %}Gerar Requerimento — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Gerar Requerimento{% endblock %}
+
+{% block conteudo %}
+
+<div class="toolbar">
+  <a href="{{ url_for('fichas.form', pessoa_id=0) }}" class="btn btn-primary">
+    &#128196; Formulário em Branco
+  </a>
+</div>
+
+<div class="card" style="margin-bottom: 18px;">
+  <form method="GET" action="{{ url_for('fichas.index') }}" class="search-form">
+    <div class="search-row">
+      <input type="text" name="q" value="{{ q }}"
+             placeholder="Buscar por nome, CPF ou CNPJ…"
+             class="search-input" autocomplete="off">
+      <button type="submit" class="btn btn-primary">Buscar</button>
+      {% if q %}
+      <a href="{{ url_for('fichas.index') }}" class="btn btn-link">Limpar</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{% if q %}
+<div class="card">
+  {% if pessoas %}
+  <table>
+    <thead>
+      <tr>
+        <th>Nome / Razão Social</th>
+        <th>CPF / CNPJ</th>
+        <th>Ação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pessoas %}
+      <tr>
+        <td>{{ p.nome_razao_social }}</td>
+        <td style="color:#666; font-size:0.85rem;">
+          {{ p.cpf or p.cnpj or '—' }}
+        </td>
+        <td>
+          <a href="{{ url_for('fichas.form', pessoa_id=p.id) }}"
+             class="btn btn-outline" style="font-size:0.8rem; padding:5px 12px;">
+            Usar dados
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <div>&#128269;</div>
+    <p>Nenhuma pessoa encontrada para "<strong>{{ q }}</strong>".</p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

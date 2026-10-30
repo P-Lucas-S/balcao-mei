@@ -1,0 +1,1374 @@
+{% extends "base.html" %}
+
+{% block titulo %}{{ pessoa.nome_razao_social }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Ficha da Pessoa{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pessoas.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+
+{% set aba = request.args.get('aba', 'dados') %}
+
+<div class="page-actions">
+  <a href="{{ url_for('pessoas.index') }}" class="btn btn-back">&#8592; Voltar</a>
+  {# M1: botão de atendimento direto #}
+  <a href="{{ url_for('atendimentos.iniciar') }}?pessoa_id={{ pessoa.id }}"
+     class="btn btn-primary">&#127919; Iniciar Atendimento</a>
+  <a href="{{ url_for('pessoas.editar', id=pessoa.id) }}" class="btn btn-outline">&#9998; Editar</a>
+  <a href="{{ url_for('pessoas.ficha_pdf', id=pessoa.id) }}"
+     target="_blank"
+     class="btn btn-outline">
+    &#128196; Gerar PDF
+  </a>
+  {% if pessoa.cnpj %}
+  <button type="button" class="btn btn-outline"
+          id="btn-sincronizar"
+          onclick="sincronizarReceita({{ pessoa.id }})"
+          title="Atualizar dados da Receita Federal">
+    🔄 Sincronizar Receita
+  </button>
+  {% endif %}
+  {% if pessoa.cnpj %}
+  {% set cnpj_limpo = pessoa.cnpj | replace('.','') | replace('/','') | replace('-','') %}
+  <a href="https://www8.receita.fazenda.gov.br/simplesnacional/aplicacoes/atspo/pgmei.app/identificacao"
+     target="_blank"
+     class="btn btn-outline btn-das"
+     onclick="copiarCNPJ('{{ cnpj_limpo }}')"
+     title="O CNPJ será copiado automaticamente">
+    &#128203; Emitir DAS
+  </a>
+  {% endif %}
+  {% if not pessoa.mei and not pessoa.cnpj %}
+  <button type="button" class="btn btn-outline"
+          onclick="abrirModalMei()"
+          title="Registrar conversão para MEI">
+    &#127970; Converter para MEI
+  </button>
+  {% endif %}
+  {% if current_user.perfil.nome == 'administrador' %}
+  <button type="button" class="btn btn-danger-outline"
+          data-url="{{ url_for('pessoas.remover', id=pessoa.id) }}"
+          data-msg="Remover este cadastro? Todos os atendimentos e solicitações vinculados também serão removidos."
+          onclick="confirmarRemocao(this)">
+    &#128465; Remover
+  </button>
+  {% else %}
+  <form method="POST" action="{{ url_for('pendencias.solicitar') }}" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="entidade" value="cadastro">
+    <input type="hidden" name="entidade_id" value="{{ pessoa.id }}">
+    <button type="button" class="btn btn-danger-outline"
+            onclick="abrirModalSolicitarExclusao(this)">
+      &#128465; Remover
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+{% if exclusao_pendente %}
+<div style="background:#fee2e2; border:1px solid #fca5a5;
+            border-left:4px solid var(--cor-perigo); border-radius:8px;
+            padding:12px 16px; margin-bottom:20px;
+            display:flex; justify-content:space-between;
+            align-items:center; flex-wrap:wrap; gap:8px;">
+  <div>
+    <span style="font-size:0.88rem; font-weight:700; color:#991b1b;">
+      &#9888;&#65039; Exclusão Pendente de Aprovação
+    </span>
+    <p style="font-size:0.78rem; color:#7f1d1d; margin:2px 0 0;">
+      Este cadastro possui uma solicitação de exclusão aguardando
+      aprovação da administração.
+      {% if exclusao_pendente.motivo %}
+        Motivo informado: "{{ exclusao_pendente.motivo }}"
+      {% endif %}
+      Solicitado por {{ exclusao_pendente.usuario_solicitante.nome }}
+      em {{ exclusao_pendente.created_at.strftime('%d/%m/%Y') }}.
+    </p>
+  </div>
+  {% if current_user.perfil.nome == 'administrador' %}
+  <a href="{{ url_for('pendencias.index') }}"
+     class="btn btn-outline"
+     style="font-size:0.78rem; border-color:#991b1b; color:#991b1b;
+            white-space:nowrap;">
+    Revisar →
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<div id="modal-sinc" style="display:none; position:fixed; inset:0;
+     background:rgba(0,0,0,0.5); z-index:9999;
+     align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:32px;
+              max-width:500px; width:90%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div id="sinc-icone" style="font-size:2rem; text-align:center;
+         margin-bottom:12px;"></div>
+    <p id="sinc-titulo" style="font-size:1rem; font-weight:700;
+       color:var(--cor-primaria); text-align:center; margin:0 0 16px;"></p>
+    <div id="sinc-lista" style="margin-bottom:20px;"></div>
+    <div style="text-align:center; display:flex; gap:12px;
+                justify-content:center;">
+      <button type="button" class="btn btn-primary"
+              onclick="location.reload()">
+        ✓ OK
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ── Navegação em abas ── #}
+<div class="abas-nav">
+  <a href="{{ url_for('pessoas.detalhe', id=pessoa.id, aba='dados') }}"
+     class="aba-nav-item{% if aba == 'dados' %} aba-nav-item--ativa{% endif %}">
+    &#128100; Dados
+  </a>
+  <a href="{{ url_for('pessoas.detalhe', id=pessoa.id, aba='historico') }}"
+     class="aba-nav-item{% if aba == 'historico' %} aba-nav-item--ativa{% endif %}">
+    &#128203; Histórico
+    {% if timeline %}<span class="count-badge">{{ timeline|length }}</span>{% endif %}
+  </a>
+  <a href="{{ url_for('pessoas.detalhe', id=pessoa.id, aba='documentos') }}"
+     class="aba-nav-item{% if aba == 'documentos' %} aba-nav-item--ativa{% endif %}">
+    &#128196; Documentos
+  </a>
+  <a href="{{ url_for('pessoas.detalhe', id=pessoa.id, aba='tags') }}"
+     class="aba-nav-item{% if aba == 'tags' %} aba-nav-item--ativa{% endif %}">
+    &#127991; Tags e LGPD
+  </a>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# ABA DADOS                                                              #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+{% if aba == 'dados' %}
+
+{# ── Ficha ── #}
+<div class="ficha-card">
+  <div class="ficha-header">
+    <div>
+      <div class="ficha-nome">{{ pessoa.nome_razao_social }}</div>
+      {% if pessoa.cnpj %}
+        <span class="ficha-tipo tipo-pj">Pessoa Jurídica</span>
+      {% elif pessoa.cpf %}
+        <span class="ficha-tipo tipo-pf">Pessoa Física</span>
+      {% else %}
+        <span class="ficha-tipo tipo-sem">Sem identificação</span>
+      {% endif %}
+    </div>
+    <span class="ficha-id">ID #{{ pessoa.id }}</span>
+  </div>
+
+  <div class="dados-grid">
+    <div class="dado-item">
+      <label>CPF</label>
+      <span {% if not pessoa.cpf %}class="vazio"{% endif %}>{{ pessoa.cpf or '—' }}</span>
+    </div>
+    <div class="dado-item">
+      <label>CNPJ</label>
+      <span {% if not pessoa.cnpj %}class="vazio"{% endif %}>{{ pessoa.cnpj or '—' }}</span>
+    </div>
+    {% if pessoa.cnpj and pessoa.cpf %}
+    <div class="dado-item">
+      <label>CPF do Titular</label>
+      <span>{{ pessoa.cpf }}</span>
+    </div>
+    {% endif %}
+    {% if not pessoa.cnpj or pessoa.data_nascimento %}
+    <div class="dado-item">
+      <label>Data de Nascimento</label>
+      <span {% if not pessoa.data_nascimento %}class="vazio"{% endif %}>
+        {{ pessoa.data_nascimento.strftime('%d/%m/%Y') if pessoa.data_nascimento else '—' }}
+      </span>
+    </div>
+    {% endif %}
+  <div class="dado-item">
+    <label>Telefone</label>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span {% if not pessoa.telefone %}class="vazio"{% endif %}>{{ pessoa.telefone or '—' }}</span>
+      {% if pessoa.telefone %}
+      <a href="https://wa.me/55{{ pessoa.telefone | replace('(','') | replace(')','') | replace(' ','') | replace('-','') }}"
+         target="_blank"
+         class="btn-whatsapp"
+         aria-label="Abrir conversa no WhatsApp">
+        WhatsApp
+      </a>
+      {% endif %}
+    </div>
+  </div>
+    <div class="dado-item">
+      <label>E-mail</label>
+      <span {% if not pessoa.email %}class="vazio"{% endif %}>{{ pessoa.email or '—' }}</span>
+    </div>
+    {% if pessoa.logradouro or pessoa.bairro %}
+    <div class="dado-item" style="grid-column:1/-1;">
+      <label>Endereço</label>
+      <span>
+        {% set partes = [] %}
+        {% if pessoa.logradouro %}{% set _ = partes.append(pessoa.logradouro) %}{% endif %}
+        {% if pessoa.numero %}{% set _ = partes.append('Nº ' + pessoa.numero) %}{% endif %}
+        {% if pessoa.complemento %}{% set _ = partes.append(pessoa.complemento) %}{% endif %}
+        {% if pessoa.bairro %}{% set _ = partes.append(pessoa.bairro) %}{% endif %}
+        {% set _ = partes.append(marca.CIDADE_UF) %}
+        {% if pessoa.cep %}{% set _ = partes.append('CEP ' + pessoa.cep) %}{% endif %}
+        {{ partes | join(', ') }}
+      </span>
+    </div>
+    {% elif pessoa.endereco %}
+    <div class="dado-item" style="grid-column:1/-1;">
+      <label>Endereço</label>
+      <span>{{ pessoa.endereco }}</span>
+    </div>
+    {% else %}
+    <div class="dado-item">
+      <label>Endereço</label>
+      <span class="vazio">—</span>
+    </div>
+    {% endif %}
+    {% if pessoa.bairro %}
+    <div class="dado-item">
+      <label>Bairro</label>
+      <span>{{ pessoa.bairro }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Dados Receita Federal ── #}
+{% if pessoa.cnpj and (pessoa.situacao_cadastral or pessoa.porte or pessoa.cnae_principal) %}
+<div class="ficha-card" style="margin-bottom:24px;">
+  <div class="ficha-header" style="margin-bottom:16px;">
+    <div class="section-title" style="margin-bottom:0;">
+      &#127963; Dados da Receita Federal
+    </div>
+  </div>
+  <div class="dados-grid">
+    {% if pessoa.nome_fantasia %}
+    <div class="dado-item">
+      <label>Nome Fantasia</label>
+      <span>{{ pessoa.nome_fantasia }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.situacao_cadastral %}
+    <div class="dado-item">
+      <label>Situação Cadastral</label>
+      {% set sit = (pessoa.situacao_cadastral or '') | upper %}
+      {% if 'ATIVA' in sit %}
+        <span class="badge-situacao badge-ativa">&#9679; {{ pessoa.situacao_cadastral }}</span>
+      {% elif 'BAIXADA' in sit or 'INAPTA' in sit or 'SUSPENSA' in sit %}
+        <span class="badge-situacao badge-irregular">&#9679; {{ pessoa.situacao_cadastral }}</span>
+      {% else %}
+        <span class="badge-situacao badge-neutra">&#9679; {{ pessoa.situacao_cadastral }}</span>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if pessoa.data_situacao_cadastral %}
+    <div class="dado-item">
+      <label>Data da Situação</label>
+      <span>{{ pessoa.data_situacao_cadastral.strftime('%d/%m/%Y') }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.data_inicio_atividade %}
+    <div class="dado-item">
+      <label>Início da Atividade</label>
+      <span>{{ pessoa.data_inicio_atividade.strftime('%d/%m/%Y') }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.porte %}
+    <div class="dado-item">
+      <label>Porte</label>
+      <span>{{ pessoa.porte }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.natureza_juridica %}
+    <div class="dado-item">
+      <label>Natureza Jurídica</label>
+      <span>{{ pessoa.natureza_juridica }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.capital_social %}
+    <div class="dado-item">
+      <label>Capital Social</label>
+      <span>{{ pessoa.capital_social }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.inscricao_estadual %}
+    <div class="dado-item">
+      <label>Inscrição Estadual</label>
+      <span>{{ pessoa.inscricao_estadual }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.mei is not none %}
+    <div class="dado-item">
+      <label>MEI</label>
+      <span>{{ 'Sim' if pessoa.mei else 'Não' }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.simples_nacional is not none %}
+    <div class="dado-item">
+      <label>Simples Nacional</label>
+      <span>{{ 'Sim' if pessoa.simples_nacional else 'Não' }}</span>
+    </div>
+    {% endif %}
+  </div>
+  {% if pessoa.cnae_principal %}
+  <div style="padding:0 0 12px;">
+    <div class="dado-item" style="margin-top:12px;">
+      <label>CNAE Principal</label>
+      <span>{{ pessoa.cnae_principal }}</span>
+    </div>
+  </div>
+  {% endif %}
+  {% if pessoa.cnae_secundario %}
+  <div style="padding:0 0 12px;">
+    <div class="dado-item">
+      <label>CNAEs Secundários</label>
+      <details class="cnae-secundario-accordion">
+        <summary class="cnae-secundario-toggle">Ver CNAEs Secundários</summary>
+        <div class="cnae-secundario-conteudo">
+          <span style="font-size:0.85rem;">{{ pessoa.cnae_secundario }}</span>
+        </div>
+      </details>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Dados Pessoais Complementares ── #}
+{% if pessoa.sexo or pessoa.rg or pessoa.nivel_escolar or pessoa.num_membros_familia or pessoa.renda_familiar %}
+<div class="ficha-card" style="margin-bottom:24px;">
+  <div class="ficha-header" style="margin-bottom:16px;">
+    <div class="section-title" style="margin-bottom:0;">&#128100; Dados Pessoais Complementares</div>
+  </div>
+  <div class="dados-grid">
+    {% if pessoa.sexo %}
+    <div class="dado-item">
+      <label>Sexo</label>
+      <span>{{ 'Masculino' if pessoa.sexo == 'M' else 'Feminino' if pessoa.sexo == 'F' else pessoa.sexo }}</span>
+    </div>
+    {% endif %}
+    {% if pessoa.rg %}
+    <div class="dado-item"><label>RG</label><span>{{ pessoa.rg }}</span></div>
+    {% endif %}
+    {% if pessoa.nivel_escolar %}
+    <div class="dado-item"><label>Nível Escolar</label><span>{{ pessoa.nivel_escolar }}</span></div>
+    {% endif %}
+    {% if pessoa.num_membros_familia %}
+    <div class="dado-item"><label>Nº Membros da Família</label><span>{{ pessoa.num_membros_familia }}</span></div>
+    {% endif %}
+    {% if pessoa.renda_familiar %}
+    <div class="dado-item"><label>Renda Familiar</label><span>{{ pessoa.renda_familiar }}</span></div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Dados Comerciais Complementares ── #}
+{% if pessoa.instagram or pessoa.faturamento_mensal or pessoa.num_funcionarios or pessoa.principais_produtos or pessoa.endereco_comercial %}
+<div class="ficha-card" style="margin-bottom:24px;">
+  <div class="ficha-header" style="margin-bottom:16px;">
+    <div class="section-title" style="margin-bottom:0;">&#128188; Dados Comerciais Complementares</div>
+  </div>
+  <div class="dados-grid">
+    {% if pessoa.instagram %}
+    <div class="dado-item"><label>Instagram</label>
+      <span>
+        {{ pessoa.instagram }}
+        {% if pessoa.instagram %}
+        <a href="https://instagram.com/{{ pessoa.instagram | replace('@','') }}"
+           target="_blank"
+           class="btn-instagram"
+           aria-label="Abrir perfil no Instagram">
+          Instagram
+        </a>
+        {% endif %}
+      </span>
+    </div>
+    {% endif %}
+    {% if pessoa.faturamento_mensal %}
+    <div class="dado-item"><label>Faturamento Mensal</label><span>{{ pessoa.faturamento_mensal }}</span></div>
+    {% endif %}
+    {% if pessoa.num_funcionarios is not none %}
+    <div class="dado-item"><label>Nº de Funcionários</label><span>{{ pessoa.num_funcionarios }}</span></div>
+    {% endif %}
+    {% if pessoa.principais_produtos %}
+    <div class="dado-item" style="grid-column:1/-1;"><label>Principais Produtos/Serviços</label><span>{{ pessoa.principais_produtos }}</span></div>
+    {% endif %}
+    {% if pessoa.endereco_comercial %}
+    <div class="dado-item" style="grid-column:1/-1;"><label>Endereço Comercial</label><span>{{ pessoa.endereco_comercial }}</span></div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Observações ── #}
+{% if pessoa.observacoes_cadastro %}
+<div class="ficha-card" style="margin-bottom:24px;">
+  <div class="ficha-header" style="margin-bottom:16px;">
+    <div class="section-title" style="margin-bottom:0;">&#128221; Observações</div>
+  </div>
+  <p class="obs-texto">{{ pessoa.observacoes_cadastro }}</p>
+</div>
+{% endif %}
+
+{# ── Serviços MEI ── #}
+{% if pessoa.cnpj %}
+{% set cnpj_limpo = pessoa.cnpj | replace('.','') | replace('/','') | replace('-','') %}
+<div class="card-servicos-mei">
+  <div class="card-servicos-info">
+    <p class="card-servicos-label">Serviços MEI — CNPJ {{ pessoa.cnpj }}</p>
+    <p class="card-servicos-sub">Clique para abrir o portal. O CNPJ é copiado automaticamente.</p>
+  </div>
+  {# P7: DAS visível + demais em dropdown #}
+  <div class="mei-acoes">
+    <a href="https://www8.receita.fazenda.gov.br/simplesnacional/aplicacoes/atspo/pgmei.app/identificacao"
+       target="_blank"
+       class="btn-servico btn-servico-destaque"
+       onclick="copiarCNPJ('{{ cnpj_limpo }}'); adicionarServico(1, 'Boleto DAS')">
+      &#128203; Emitir DAS
+    </a>
+    <div class="mei-dropdown">
+      <button class="btn btn-outline mei-dropdown-toggle"
+              onclick="toggleMeiDropdown(event)">
+        Outras Ações &#9660;
+      </button>
+      <div class="mei-dropdown-menu" id="mei-dropdown-menu">
+        <a href="https://www8.receita.fazenda.gov.br/SimplesNacional/Aplicacoes/ATSPO/dasnsimei.app/Identificacao"
+           target="_blank" onclick="copiarCNPJ('{{ cnpj_limpo }}'); adicionarServico(12, 'Emissão de Documento')">
+          &#128196; Declaração Anual
+        </a>
+        <a href="https://mei.receita.economia.gov.br/certificado/login"
+           target="_blank" onclick="copiarCNPJ('{{ cnpj_limpo }}'); adicionarServico(12, 'Emissão de Documento')">
+          &#127994; Comprovante CCMEI
+        </a>
+        <a href="https://www.gov.br/empresas-e-negocios/pt-br/empreendedor/verificar-debitos-do-mei"
+           target="_blank" onclick="copiarCNPJ('{{ cnpj_limpo }}'); adicionarServico(2, 'Parcelamento')">
+          &#9888; Regularizar Débitos
+        </a>
+        <a href="https://solucoes.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Solicitacao.asp?cnpj={{ cnpj_limpo }}"
+           target="_blank" onclick="adicionarServico(14, 'Consulta Cadastral')">
+          &#128269; Consultar CNPJ
+        </a>
+        <a href="https://mei.receita.economia.gov.br/alteracao/acesso"
+           target="_blank" onclick="copiarCNPJ('{{ cnpj_limpo }}'); adicionarServico(13, 'Orientação')">
+          &#9998; Alterar Dados
+        </a>
+        <a href="https://mei.receita.economia.gov.br/baixa/login"
+           target="_blank" onclick="copiarCNPJ('{{ cnpj_limpo }}'); adicionarServico(10, 'Baixa de MEI')">
+          &#128683; Solicitar Baixa
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}{# /aba dados #}
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# ABA HISTÓRICO                                                          #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+{% if aba == 'historico' %}
+
+{# ── Resumo rápido ── #}
+{% if resumo.total_atend > 0 or resumo.total_solic > 0 %}
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr));
+            gap:12px; margin-bottom:24px;">
+
+  <div class="card" style="padding:16px 20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 6px;">
+      Atendimentos
+    </p>
+    <p style="font-size:1.8rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 4px;">{{ resumo.total_atend }}</p>
+    {% if resumo.ultimo_atend %}
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      Último: {{ resumo.ultimo_atend.data_atendimento.strftime('%d/%m/%Y') }}
+      {% if resumo.dias_sem_atend == 0 %}
+        <span style="color:var(--cor-sucesso); font-weight:600;">— hoje</span>
+      {% elif resumo.dias_sem_atend == 1 %}
+        <span style="color:var(--cor-sucesso);">— ontem</span>
+      {% elif resumo.dias_sem_atend <= 7 %}
+        <span style="color:var(--cor-acento);">— {{ resumo.dias_sem_atend }} dias atrás</span>
+      {% elif resumo.dias_sem_atend > 90 %}
+        <span style="color:var(--cor-aviso); font-weight:600;">— {{ resumo.dias_sem_atend }} dias atrás</span>
+      {% else %}
+        <span>— {{ resumo.dias_sem_atend }} dias atrás</span>
+      {% endif %}
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="padding:16px 20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 6px;">
+      Solicitações
+    </p>
+    <p style="font-size:1.8rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 4px;">{{ resumo.total_solic }}</p>
+    {% if resumo.ultima_solic %}
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      Última: {{ resumo.ultima_solic.data_solicitacao.strftime('%d/%m/%Y') }}
+    </p>
+    {% endif %}
+  </div>
+
+  {% if resumo.solic_abertas > 0 %}
+  <div class="card" style="padding:16px 20px;
+       border-left:3px solid var(--cor-aviso);">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--cor-aviso); margin:0 0 6px;">
+      Em aberto
+    </p>
+    <p style="font-size:1.8rem; font-weight:800; color:var(--cor-aviso);
+              line-height:1; margin:0 0 4px;">{{ resumo.solic_abertas }}</p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      solicitação(ões) pendente(s)
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
+{# ── Timeline unificada ── #}
+<div class="timeline-wrapper">
+  <div class="timeline-header">
+    <div class="section-title">
+      📋 Histórico
+      <span class="count-badge">{{ timeline|length }}</span>
+    </div>
+    <div class="timeline-filtros">
+      <button class="tl-filtro tl-filtro--ativo" onclick="filtrarTimeline('todos')">Todos</button>
+      <button class="tl-filtro" onclick="filtrarTimeline('atendimento')">&#128222; Atendimentos <span class="tl-count">{{ atendimentos|length }}</span></button>
+      <button class="tl-filtro" onclick="filtrarTimeline('solicitacao')">&#128203; Solicitações <span class="tl-count">{{ solicitacoes|length }}</span></button>
+    </div>
+  </div>
+
+  {% if timeline %}
+  <div class="tl-list">
+    {% for item in timeline %}
+    <div class="tl-item" data-tipo="{{ item.tipo }}">
+      <div class="tl-icon tl-icon--{{ item.tipo }}">
+        {% if item.tipo == 'atendimento' %}&#128222;{% else %}&#128203;{% endif %}
+      </div>
+      <div class="tl-body">
+        <div class="tl-meta">
+          <span class="tl-data">{{ item.data_fmt }}{% if item.hora_fmt %} · {{ item.hora_fmt }}{% endif %}</span>
+          <span class="tl-resp">{{ item.responsavel }}</span>
+          {% if item.status %}
+          <span class="badge-status {{ item.status_cls }}">{{ item.status }}</span>
+          {% endif %}
+        </div>
+        <a href="{{ item.link }}" class="tl-titulo">{{ item.titulo }}</a>
+        {% if item.subtitulo and item.subtitulo != '—' %}
+        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:5px;">
+          {% for tag in item.subtitulo.split(', ') %}
+          {% if tag and tag != '—' %}
+          <span class="tipo-tag">{{ tag }}</span>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if item.detalhe %}
+        <div class="tl-detalhe">{{ item.detalhe }}</div>
+        {% endif %}
+        {% if item.tipo == 'solicitacao' and reqs_por_sol.get(item.id) %}
+        <div class="tl-reqs">
+          {% for req in reqs_por_sol[item.id] %}
+          <div class="tl-req-item">
+            <span>&#128196;</span>
+            <span class="tl-req-protocolo">{{ req.protocolo }}</span>
+            <span style="color:var(--texto-suave);">{{ req.created_at.strftime('%d/%m/%Y') }}</span>
+            {% if req.modo_emissao %}
+            <span class="tl-req-modo">{{ req.modo_emissao }}</span>
+            {% endif %}
+            <a href="{{ url_for('fichas.emitir', sol_id=item.id) }}"
+               class="btn btn-outline"
+               style="font-size:0.72rem; padding:2px 8px;">
+              Ver requerimento
+            </a>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="tl-vazio">Nenhum registro encontrado.</div>
+  {% endif %}
+</div>
+
+{% endif %}{# /aba historico #}
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# ABA DOCUMENTOS                                                         #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+{% if aba == 'documentos' %}
+
+{% set docs_ativos = pessoa.documentos_visiveis | selectattr('ativo') | list %}
+{% set tem_rg  = docs_ativos | selectattr('tipo', 'equalto', 'rg_cnh') | list | length > 0 %}
+{% set tem_end = docs_ativos | selectattr('tipo', 'equalto', 'comprovante_endereco') | list | length > 0 %}
+
+<div class="historico-card" style="margin-bottom:24px;">
+  <div class="historico-header">
+    <div class="section-title">
+      &#128196; Documentos
+      <span class="count-badge">{{ docs_ativos | length }}</span>
+    </div>
+    {% if tem_rg and tem_end %}
+    <span style="font-size:0.78rem; font-weight:600; color:var(--cor-sucesso);">
+      ✅ Documentação completa
+    </span>
+    {% else %}
+    <span style="font-size:0.78rem; font-weight:600; color:var(--cor-aviso);">
+      ⚠️ Documentação incompleta
+    </span>
+    {% endif %}
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr));
+              gap:16px; padding:20px;">
+    {% for tipo_key, icone, tipo_label in [
+        ('rg_cnh',               '🧑', 'RG / CNH'),
+        ('comprovante_endereco', '🏠', 'Comprovante de Endereço'),
+        ('cnpj_mei',             '🏭', 'Comprovante CNPJ / MEI'),
+        ('outro',                '📄', 'Outro'),
+    ] %}
+    {% set doc_ativo = pessoa.documentos_visiveis | selectattr('tipo','equalto',tipo_key)
+                                                  | selectattr('ativo') | first %}
+    {% set historico = pessoa.documentos_visiveis | selectattr('tipo','equalto',tipo_key)
+                                                  | rejectattr('ativo') | list %}
+    <div style="border:1px solid var(--borda); border-radius:var(--radius-lg);
+                padding:16px; background:var(--bg-card);">
+
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span style="font-size:1.4rem;">{{ icone | safe }}</span>
+        <div>
+          <p style="font-size:0.82rem; font-weight:700;
+                    color:var(--texto-principal); margin:0;">{{ tipo_label }}</p>
+          {% if doc_ativo %}
+          <p style="font-size:0.72rem; color:var(--cor-sucesso); font-weight:600; margin:0;">
+            ✅ {{ doc_ativo.created_at.strftime('%d/%m/%Y') }}
+            — {{ doc_ativo.usuario.nome if doc_ativo.usuario else '—' }}
+          </p>
+          {% else %}
+          <p style="font-size:0.72rem; color:var(--texto-suave); margin:0;">
+            Nenhum documento enviado
+          </p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if doc_ativo %}
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+        <a href="{{ url_for('documentos.ver', doc_id=doc_ativo.id) }}"
+           target="_blank"
+           class="btn btn-outline"
+           style="font-size:0.78rem; padding:4px 10px;">
+          &#128065; Ver
+        </a>
+        <a href="{{ url_for('documentos.baixar', doc_id=doc_ativo.id) }}"
+           class="btn btn-outline"
+           style="font-size:0.78rem; padding:4px 10px;">
+          &#11015; Baixar
+        </a>
+        <button type="button"
+                class="btn btn-danger-outline"
+                style="font-size:0.78rem; padding:4px 10px;"
+                data-url="{{ url_for('documentos.remover', doc_id=doc_ativo.id) }}"
+                data-msg="Remover {{ tipo_label }} de {{ pessoa.nome_razao_social }}?"
+                onclick="confirmarRemocao(this)">
+          &#128465;
+        </button>
+      </div>
+      {% endif %}
+
+      <form method="POST"
+            action="{{ url_for('documentos.upload', pessoa_id=pessoa.id) }}"
+            enctype="multipart/form-data">
+        <input type="hidden" name="tipo" value="{{ tipo_key }}">
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <label style="cursor:pointer; flex:1;">
+            <input type="file" name="arquivo"
+                   accept=".jpg,.jpeg,.png,.pdf"
+                   style="display:none;"
+                   onchange="this.closest('form').querySelector('.nome-arq').textContent =
+                             this.files[0]?.name || 'Nenhum arquivo'">
+            <span class="btn btn-outline"
+                  style="font-size:0.78rem; padding:4px 10px; display:inline-block;">
+              &#128206; Selecionar
+            </span>
+            <span class="nome-arq"
+                  style="font-size:0.75rem; color:var(--texto-suave); margin-left:4px;">
+              Nenhum arquivo
+            </span>
+          </label>
+          <button type="submit" class="btn btn-primary"
+                  style="font-size:0.78rem; padding:4px 10px; white-space:nowrap;">
+            {% if doc_ativo %}Atualizar{% else %}Enviar{% endif %}
+          </button>
+        </div>
+      </form>
+
+      {% if historico %}
+      <details style="margin-top:10px;">
+        <summary style="font-size:0.72rem; color:var(--texto-suave); cursor:pointer;">
+          {{ historico | length }} versão(ões) anterior(es)
+        </summary>
+        <div style="margin-top:6px; display:flex; flex-direction:column; gap:4px;">
+          {% for h in historico %}
+          <div style="font-size:0.72rem; color:var(--texto-suave);
+                      display:flex; justify-content:space-between; align-items:center;">
+            <span>{{ h.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+            <a href="{{ url_for('documentos.baixar', doc_id=h.id) }}"
+               style="color:var(--cor-primaria); font-weight:600;">
+              Baixar
+            </a>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endif %}{# /aba documentos #}
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# ABA TAGS E LGPD                                                        #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+{% if aba == 'tags' %}
+
+{# ── Tags de Interesse ── #}
+<div class="ficha-card" style="margin-bottom:24px;">
+  <div class="ficha-header" style="margin-bottom:12px;">
+    <div class="section-title" style="margin-bottom:0;">&#127991; Interesses</div>
+    <button type="button" class="btn btn-outline"
+            style="font-size:0.78rem; padding:4px 12px;"
+            onclick="abrirModalTags()">
+      &#9998; Editar Interesses
+    </button>
+  </div>
+  <div style="display:flex; flex-wrap:wrap; gap:8px; padding:0 0 4px;">
+    {% if pessoa.tags %}
+      {% for tag in pessoa.tags %}
+      <span style="display:inline-block; padding:4px 12px; border-radius:20px;
+                   background:var(--cor-acento-claro); color:var(--cor-acento);
+                   font-size:0.80rem; font-weight:600;">
+        &#127991; {{ tag.descricao }}
+      </span>
+      {% endfor %}
+    {% else %}
+      <span style="font-size:0.85rem; color:var(--texto-suave);">Nenhum interesse registrado.</span>
+    {% endif %}
+  </div>
+</div>
+
+{# ── LGPD — Consentimento WhatsApp ── #}
+<div class="ficha-card" style="margin-bottom:24px;">
+  <div class="ficha-header" style="margin-bottom:12px;">
+    <div class="section-title" style="margin-bottom:0;">&#128241; Consentimento WhatsApp (LGPD)</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+    {% if pessoa.aceite_whatsapp %}
+      <span style="display:inline-flex; align-items:center; gap:6px;
+                   background:#dcfce7; color:#166534; border-radius:8px;
+                   padding:6px 14px; font-size:0.85rem; font-weight:600;">
+        &#10003; Aceite ativo
+        {% if pessoa.data_aceite_whatsapp %}
+          — desde {{ pessoa.data_aceite_whatsapp.strftime('%d/%m/%Y') }}
+        {% endif %}
+      </span>
+      <form method="POST"
+            action="{{ url_for('pessoas.whatsapp_consentimento', id=pessoa.id) }}"
+            style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="acao" value="revogar">
+        <button type="submit" class="btn btn-outline"
+                style="font-size:0.78rem; padding:4px 12px;
+                       border-color:var(--cor-perigo); color:var(--cor-perigo);"
+                onclick="return confirm('Revogar consentimento de WhatsApp?')">
+          Revogar
+        </button>
+      </form>
+    {% else %}
+      <span style="display:inline-flex; align-items:center; gap:6px;
+                   background:#f1f5f9; color:var(--texto-secundario); border-radius:8px;
+                   padding:6px 14px; font-size:0.85rem; font-weight:600;">
+        &#10007; Sem consentimento
+        {% if pessoa.data_revogacao_whatsapp %}
+          — revogado em {{ pessoa.data_revogacao_whatsapp.strftime('%d/%m/%Y') }}
+        {% endif %}
+      </span>
+      <form method="POST"
+            action="{{ url_for('pessoas.whatsapp_consentimento', id=pessoa.id) }}"
+            style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="acao" value="conceder">
+        <button type="submit" class="btn btn-outline"
+                style="font-size:0.78rem; padding:4px 12px;">
+          Registrar Aceite
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}{# /aba tags #}
+
+{# ── Painel de atendimento MEI (fixo, sempre visível) ── #}
+<div id="painel-atendimento" style="
+  display:none;
+  position:fixed;
+  bottom:0; left:0; right:0;
+  background:var(--cor-primaria);
+  color:white;
+  padding:12px 24px;
+  z-index:500;
+  box-shadow:0 -4px 16px rgba(15,76,92,0.25);
+  align-items:center;
+  gap:16px;
+  flex-wrap:wrap;
+">
+  <div style="flex:1; min-width:200px;">
+    <p style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:rgba(255,255,255,0.7); margin:0 0 4px;">
+      📋 Atendimento em andamento
+    </p>
+    <div id="painel-servicos" style="display:flex; flex-wrap:wrap; gap:6px;">
+    </div>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+    <button type="button"
+            onclick="registrarAtendimento()"
+            style="background:white; color:var(--cor-primaria);
+                   border:none; border-radius:6px;
+                   padding:8px 18px; font-weight:700;
+                   font-size:0.88rem; cursor:pointer;">
+      ✓ Registrar Atendimento
+    </button>
+    <button type="button"
+            onclick="cancelarAtendimento()"
+            style="background:rgba(255,255,255,0.15); color:white;
+                   border:1px solid rgba(255,255,255,0.3);
+                   border-radius:6px; padding:8px 12px;
+                   font-size:0.82rem; cursor:pointer;">
+      ✕ Cancelar
+    </button>
+  </div>
+</div>
+
+{# ── Modal — Editar Tags ── #}
+<div id="modal-tags"
+     style="display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.5); z-index:9999;
+            align-items:center; justify-content:center;">
+  <div style="background:var(--bg-card); border-radius:var(--radius-lg);
+              padding:32px; max-width:520px; width:92%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2); max-height:85vh; overflow-y:auto;">
+    <h3 style="margin:0 0 16px; color:var(--cor-primaria); font-size:1rem;">
+      &#127991; Interesses
+    </h3>
+    <form method="POST"
+          action="{{ url_for('pessoas.salvar_tags', id=pessoa.id) }}"
+          id="form-tags">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px;">
+        {% for tag in tags_disponiveis %}
+        <label style="display:flex; align-items:center; gap:6px;
+                      background:var(--bg-pagina); border:1px solid var(--borda);
+                      border-radius:20px; padding:5px 14px; cursor:pointer;
+                      font-size:0.82rem; font-weight:500; transition:all 0.15s;"
+               id="label-tag-{{ tag.id }}">
+          <input type="checkbox" name="tags" value="{{ tag.id }}"
+                 {{ 'checked' if tag.id in tags_selecionadas_ids }}
+                 onchange="toggleTagLabel({{ tag.id }}, this.checked)"
+                 style="accent-color:var(--cor-primaria);">
+          &#127991; {{ tag.descricao }}
+        </label>
+        {% endfor %}
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary">&#10003; Salvar</button>
+        <button type="button" class="btn btn-secondary"
+                onclick="fecharModalTags()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── Modal — Converter para MEI ── #}
+<div id="modal-mei"
+     style="display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.5); z-index:9999;
+            align-items:center; justify-content:center;">
+  <div style="background:var(--bg-card); border-radius:var(--radius-lg);
+              padding:32px; max-width:480px; width:92%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+
+    {# Passo 1 — Confirmação #}
+    <div id="mei-passo-1">
+      <h3 style="margin:0 0 6px; color:var(--cor-primaria); font-size:1rem;">
+        &#127970; Converter para MEI
+      </h3>
+      <p style="font-size:0.82rem; color:var(--texto-suave); margin:0 0 18px;">
+        Confirmando que <strong>{{ pessoa.nome_razao_social }}</strong>
+        formalizou seu negócio como MEI.
+      </p>
+      <div style="background:var(--bg-pagina); border-radius:8px; padding:12px 16px;
+                  font-size:0.82rem; margin-bottom:20px;">
+        {% if pessoa.cpf %}
+        <div><strong>CPF:</strong> {{ pessoa.cpf }}</div>
+        {% endif %}
+        {% if pessoa.data_nascimento %}
+        <div><strong>Data de Nasc.:</strong> {{ pessoa.data_nascimento.strftime('%d/%m/%Y') }}</div>
+        {% endif %}
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary"
+                onclick="meiPasso(2)">Confirmar →</button>
+        <button type="button" class="btn btn-secondary"
+                onclick="fecharModalMei()">Cancelar</button>
+      </div>
+    </div>
+
+    {# Passo 2 — CNPJ #}
+    <div id="mei-passo-2" style="display:none;">
+      <h3 style="margin:0 0 6px; color:var(--cor-primaria); font-size:1rem;">
+        &#127970; Informe o CNPJ do MEI
+      </h3>
+      <p style="font-size:0.82rem; color:var(--texto-suave); margin:0 0 16px;">
+        O CNPJ está no comprovante de abertura do Portal do Empreendedor.
+      </p>
+      <div class="form-group" style="margin-bottom:16px;">
+        <label for="mei-cnpj">CNPJ</label>
+        <input type="text" id="mei-cnpj" name="cnpj"
+               placeholder="00.000.000/0001-00" maxlength="18"
+               style="width:100%;"
+               oninput="mascaraCNPJ(this)">
+        <div id="mei-cnpj-erro"
+             style="color:var(--cor-perigo); font-size:0.78rem; margin-top:4px;
+                    display:none;"></div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary"
+                onclick="meiConfirmar()">&#10003; Registrar MEI</button>
+        <button type="button" class="btn btn-secondary"
+                onclick="meiPasso(1)">&#8592; Voltar</button>
+      </div>
+    </div>
+
+    {# Passo 3 — Sincronização opcional #}
+    <div id="mei-passo-3" style="display:none;">
+      <h3 style="margin:0 0 6px; color:var(--cor-primaria); font-size:1rem;">
+        &#10003; MEI registrado!
+      </h3>
+      <p style="font-size:0.82rem; color:var(--texto-suave); margin:0 0 18px;">
+        Deseja sincronizar os dados da Receita Federal agora?
+      </p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary"
+                onclick="meiSincronizar()">
+          &#128260; Sincronizar Receita
+        </button>
+        <button type="button" class="btn btn-secondary"
+                onclick="location.reload()">Agora não</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function mostrarToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = `
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:#1f2937; color:white; padding:10px 20px;
+    border-radius:8px; font-size:0.85rem; z-index:9999;
+    box-shadow:0 4px 12px rgba(0,0,0,0.2); pointer-events:none;
+    white-space:nowrap;
+  `;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+function copiarCNPJ(cnpj) {
+  navigator.clipboard.writeText(cnpj).then(() => {
+    mostrarToast('✅ CNPJ copiado! Cole no campo do portal (Ctrl+V)');
+  }).catch(() => {
+    prompt('Copie o CNPJ e cole no portal:', cnpj);
+  });
+}
+
+function toggleMeiDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('mei-dropdown-menu').classList.toggle('aberto');
+}
+document.addEventListener('click', function() {
+  const m = document.getElementById('mei-dropdown-menu');
+  if (m) m.classList.remove('aberto');
+});
+
+function filtrarTimeline(tipo) {
+  document.querySelectorAll('.tl-filtro').forEach(b => b.classList.remove('tl-filtro--ativo'));
+  event.currentTarget.classList.add('tl-filtro--ativo');
+  document.querySelectorAll('.tl-item').forEach(item => {
+    item.style.display = (tipo === 'todos' || item.dataset.tipo === tipo) ? '' : 'none';
+  });
+}
+
+// ── Prompt de Abertura de MEI ─────────────────────────────────────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('mei_aberto') !== '1') return;
+
+  // Remove o parâmetro da URL sem recarregar
+  const url = new URL(window.location);
+  url.searchParams.delete('mei_aberto');
+  window.history.replaceState({}, '', url);
+
+  // Mostra modal de confirmação
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position:fixed; inset:0; background:rgba(0,0,0,0.5);
+    display:flex; align-items:center; justify-content:center;
+    z-index:9999;
+  `;
+  overlay.innerHTML = `
+    <div style="background:white; border-radius:12px; padding:32px;
+                max-width:440px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+      <div style="font-size:2rem; text-align:center; margin-bottom:12px;">🎉</div>
+      <p style="font-size:1rem; font-weight:700; color:var(--cor-primaria);
+                text-align:center; margin:0 0 8px;">MEI Aberto com Sucesso!</p>
+      <p style="font-size:0.88rem; color:var(--texto-suave); text-align:center;
+                margin:0 0 24px;">
+        Deseja atualizar o cadastro desta pessoa com o CNPJ do novo MEI?
+      </p>
+      <div style="display:flex; gap:12px; justify-content:center;">
+        <a href="{{ url_for('pessoas.editar', id=pessoa.id) }}"
+           style="background:var(--cor-primaria); color:white; padding:10px 20px;
+                  border-radius:8px; text-decoration:none; font-weight:600;
+                  font-size:0.88rem;">
+          ✎ Atualizar Cadastro
+        </a>
+        <button type="button"
+                style="background:transparent; border:1px solid var(--borda);
+                       color:var(--texto-suave); padding:10px 20px;
+                       border-radius:8px; cursor:pointer; font-size:0.88rem;"
+                onclick="this.closest('[style*=&quot;inset&quot;]').remove()">
+          Agora não
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.remove();
+  });
+})();
+
+// ── Prompt de Iniciar Atendimento após cadastro ───────────────────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('iniciar_atendimento') !== '1') return;
+
+  const url = new URL(window.location);
+  url.searchParams.delete('iniciar_atendimento');
+  window.history.replaceState({}, '', url);
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position:fixed; inset:0; background:rgba(0,0,0,0.5);
+    display:flex; align-items:center; justify-content:center;
+    z-index:9999;
+  `;
+  overlay.innerHTML = `
+    <div style="background:white; border-radius:12px; padding:32px;
+                max-width:440px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+      <div style="font-size:2rem; text-align:center; margin-bottom:12px;">📞</div>
+      <p style="font-size:1rem; font-weight:700; color:var(--cor-primaria);
+                text-align:center; margin:0 0 8px;">Cadastro realizado!</p>
+      <p style="font-size:0.88rem; color:var(--texto-suave); text-align:center;
+                margin:0 0 24px;">
+        Deseja iniciar um atendimento para <strong>{{ pessoa.nome_razao_social }}</strong> agora?
+      </p>
+      <div style="display:flex; gap:12px; justify-content:center;">
+        <a href="{{ url_for('atendimentos.iniciar') }}?pessoa_id={{ pessoa.id }}"
+           style="background:var(--cor-primaria); color:white; padding:10px 20px;
+                  border-radius:8px; text-decoration:none; font-weight:600;
+                  font-size:0.88rem;">
+          📞 Iniciar Atendimento
+        </a>
+        <button type="button"
+                style="background:transparent; border:1px solid var(--borda);
+                       color:var(--texto-suave); padding:10px 20px;
+                       border-radius:8px; cursor:pointer; font-size:0.88rem;"
+                onclick="this.closest('[style*=&quot;inset&quot;]').remove()">
+          Agora não
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.remove();
+  });
+})();
+
+async function sincronizarReceita(pessoaId) {
+  const btn = document.getElementById('btn-sincronizar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Consultando…';
+
+  try {
+    const resp = await fetch(`{{ url_for('pessoas.index') }}${pessoaId}/sincronizar-receita`, {
+      method: 'POST',
+      headers: {'X-CSRFToken': document.cookie.match(/csrf_token=([^;]+)/)?.[1] || ''}
+    });
+    const data = await resp.json();
+
+    const modal  = document.getElementById('modal-sinc');
+    const icone  = document.getElementById('sinc-icone');
+    const titulo = document.getElementById('sinc-titulo');
+    const lista  = document.getElementById('sinc-lista');
+
+    if (!data.ok) {
+      icone.textContent  = '❌';
+      titulo.textContent = data.erro || 'Erro ao consultar Receita Federal.';
+      lista.innerHTML    = '';
+    } else if (data.total === 0) {
+      icone.textContent  = '✅';
+      titulo.textContent = 'Cadastro já está atualizado!';
+      lista.innerHTML    = '<p style="text-align:center; color:var(--texto-suave); font-size:0.88rem;">Nenhuma alteração necessária.</p>';
+    } else {
+      icone.textContent  = '🔄';
+      titulo.textContent = `${data.total} campo(s) atualizado(s)`;
+      lista.innerHTML = `
+        <table style="width:100%; font-size:0.82rem; border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f3f4f6;">
+              <th style="padding:6px 10px; text-align:left; font-weight:700;">Campo</th>
+              <th style="padding:6px 10px; text-align:left; color:#991b1b;">Antes</th>
+              <th style="padding:6px 10px; text-align:left; color:#065f46;">Depois</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.alteracoes.map(a => `
+              <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:6px 10px; font-weight:600;">${a.campo}</td>
+                <td style="padding:6px 10px; color:#991b1b;">${a.antes}</td>
+                <td style="padding:6px 10px; color:#065f46; font-weight:600;">${a.depois}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    modal.style.display = 'flex';
+    modal.addEventListener('click', e => {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+
+  } catch (err) {
+    mostrarToast('Erro de conexão. Tente novamente.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Sincronizar Receita';
+  }
+}
+
+// ── Carrinho de atendimento MEI ───────────────────────────────────
+const _pessoaId = {{ pessoa.id }};
+let _servicosCarrinho = {};  // { tipo_id: nome }
+
+function adicionarServico(tipoId, nome) {
+  _servicosCarrinho[tipoId] = nome;
+  _atualizarPainel();
+}
+
+function _atualizarPainel() {
+  const painel    = document.getElementById('painel-atendimento');
+  const container = document.getElementById('painel-servicos');
+  const servicos  = Object.entries(_servicosCarrinho);
+
+  if (servicos.length === 0) {
+    painel.style.display = 'none';
+    return;
+  }
+
+  painel.style.display = 'flex';
+  container.innerHTML  = servicos.map(([tid, nome]) => `
+    <span style="
+      background:rgba(255,255,255,0.2);
+      color:white;
+      padding:3px 10px;
+      border-radius:20px;
+      font-size:0.78rem;
+      font-weight:600;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    ">
+      ${nome}
+      <span onclick="removerServico(${tid})"
+            style="cursor:pointer; opacity:0.7; font-size:0.9rem;">✕</span>
+    </span>
+  `).join('');
+}
+
+function removerServico(tipoId) {
+  delete _servicosCarrinho[tipoId];
+  _atualizarPainel();
+}
+
+function cancelarAtendimento() {
+  _servicosCarrinho = {};
+  _atualizarPainel();
+}
+
+async function registrarAtendimento() {
+  const tipos = Object.keys(_servicosCarrinho);
+  if (tipos.length === 0) return;
+
+  const btn = document.querySelector('#painel-atendimento button');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Registrando…';
+
+  try {
+    const resp = await fetch('{{ url_for("atendimentos.registrar_mei") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pessoa_id: _pessoaId,
+        tipos: tipos.map(Number),
+      }),
+    });
+    const data = await resp.json();
+
+    if (data.ok) {
+      mostrarToast(`✅ Atendimento #${data.atendimento_id} registrado!`);
+      cancelarAtendimento();
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      mostrarToast('❌ Erro ao registrar: ' + (data.erro || 'tente novamente'));
+      btn.disabled    = false;
+      btn.textContent = '✓ Registrar Atendimento';
+    }
+  } catch (e) {
+    mostrarToast('❌ Erro de conexão. Tente novamente.');
+    btn.disabled    = false;
+    btn.textContent = '✓ Registrar Atendimento';
+  }
+}
+
+// ── Modal Tags ────────────────────────────────────────────────────────
+function abrirModalTags() {
+  var m = document.getElementById('modal-tags');
+  m.style.display = 'flex';
+  m.onclick = function(e) { if (e.target === m) fecharModalTags(); };
+}
+function fecharModalTags() {
+  document.getElementById('modal-tags').style.display = 'none';
+}
+function toggleTagLabel(tagId, checked) {
+  var lbl = document.getElementById('label-tag-' + tagId);
+  if (!lbl) return;
+  lbl.style.background      = checked ? 'var(--cor-acento-claro)' : 'var(--bg-pagina)';
+  lbl.style.borderColor     = checked ? 'var(--cor-acento)' : 'var(--borda)';
+  lbl.style.color           = checked ? 'var(--cor-acento)' : '';
+  lbl.style.fontWeight      = checked ? '700' : '500';
+}
+// Inicializa labels com estado correto
+(function() {
+  document.querySelectorAll('#form-tags input[type="checkbox"]').forEach(function(cb) {
+    toggleTagLabel(cb.value, cb.checked);
+  });
+})();
+
+// ── Modal MEI ────────────────────────────────────────────────────────
+function abrirModalMei() {
+  meiPasso(1);
+  var m = document.getElementById('modal-mei');
+  m.style.display = 'flex';
+  m.onclick = function(e) { if (e.target === m) fecharModalMei(); };
+}
+function fecharModalMei() {
+  document.getElementById('modal-mei').style.display = 'none';
+}
+function meiPasso(n) {
+  [1, 2, 3].forEach(function(i) {
+    var el = document.getElementById('mei-passo-' + i);
+    if (el) el.style.display = (i === n) ? '' : 'none';
+  });
+}
+function mascaraCNPJ(el) {
+  var v = el.value.replace(/\D/g, '').slice(0, 14);
+  if (v.length > 12) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
+  else if (v.length > 8) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4');
+  else if (v.length > 5) v = v.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3');
+  else if (v.length > 2) v = v.replace(/(\d{2})(\d{1,3})/, '$1.$2');
+  el.value = v;
+}
+async function meiConfirmar() {
+  var cnpj = document.getElementById('mei-cnpj').value.trim();
+  var erroEl = document.getElementById('mei-cnpj-erro');
+  erroEl.style.display = 'none';
+
+  if (!cnpj) {
+    erroEl.textContent = 'Informe o CNPJ.';
+    erroEl.style.display = '';
+    return;
+  }
+
+  var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ||
+    document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+
+  var form = new FormData();
+  form.append('cnpj', cnpj);
+  form.append('csrf_token', csrfToken);
+
+  try {
+    var resp = await fetch('{{ url_for("pessoas.converter_mei", id=pessoa.id) }}', {
+      method: 'POST',
+      body: form,
+    });
+    var data = await resp.json();
+
+    if (data.ok) {
+      meiPasso(3);
+    } else {
+      erroEl.textContent = data.erro || 'Erro desconhecido.';
+      erroEl.style.display = '';
+    }
+  } catch (e) {
+    erroEl.textContent = 'Erro de conexão. Tente novamente.';
+    erroEl.style.display = '';
+  }
+}
+function meiSincronizar() {
+  fecharModalMei();
+  sincronizarReceita({{ pessoa.id }});
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    fecharModalTags();
+    fecharModalMei();
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% macro paginacao(p, endpoint) %}
+{% if p.pages > 1 %}
+<div class="paginacao-wrapper">
+  <span class="paginacao-info">
+    {{ p.total }} registro(s) · página {{ p.page }} de {{ p.pages }}
+  </span>
+  <div class="paginacao-nav">
+
+    {# Primeira + Anterior #}
+    {% if p.has_prev %}
+      <a href="{{ url_for(endpoint, page=1, **kwargs) }}"
+         class="paginacao-btn" title="Primeira">«</a>
+      <a href="{{ url_for(endpoint, page=p.prev_num, **kwargs) }}"
+         class="paginacao-btn">‹</a>
+    {% else %}
+      <span class="paginacao-btn disabled">«</span>
+      <span class="paginacao-btn disabled">‹</span>
+    {% endif %}
+
+    {# Páginas numeradas — janela de 5 ao redor da atual #}
+    {% for num in p.iter_pages(left_edge=1, right_edge=1,
+                                left_current=2, right_current=2) %}
+      {% if num %}
+        {% if num == p.page %}
+          <span class="paginacao-btn ativo">{{ num }}</span>
+        {% else %}
+          <a href="{{ url_for(endpoint, page=num, **kwargs) }}"
+             class="paginacao-btn">{{ num }}</a>
+        {% endif %}
+      {% else %}
+        <span class="paginacao-btn reticencias">…</span>
+      {% endif %}
+    {% endfor %}
+
+    {# Próxima + Última #}
+    {% if p.has_next %}
+      <a href="{{ url_for(endpoint, page=p.next_num, **kwargs) }}"
+         class="paginacao-btn">›</a>
+      <a href="{{ url_for(endpoint, page=p.pages, **kwargs) }}"
+         class="paginacao-btn" title="Última">»</a>
+    {% else %}
+      <span class="paginacao-btn disabled">›</span>
+      <span class="paginacao-btn disabled">»</span>
+    {% endif %}
+
+  </div>
+  {% if p.pages > 5 %}
+  <form method="GET" class="paginacao-ir"
+        onsubmit="irParaPagina(event, {{ p.pages }})">
+    <label>Ir para:</label>
+    <input type="number" id="input-pagina" min="1"
+           max="{{ p.pages }}"
+           placeholder="{{ p.page }}">
+    <button type="submit" class="btn btn-outline btn-sm">Ir</button>
+  </form>
+  <script>
+  if (typeof irParaPagina === 'undefined') {
+    function irParaPagina(e, totalPaginas) {
+      e.preventDefault();
+      const n = parseInt(document.getElementById('input-pagina').value);
+      if (n >= 1 && n <= totalPaginas) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('page', n);
+        window.location.href = url.toString();
+      }
+    }
+  }
+  </script>
+  {% endif %}
+</div>
+{% else %}
+{# Mesmo com uma página, mostrar total #}
+<div class="paginacao-wrapper">
+  <span class="paginacao-info">{{ p.total }} registro(s)</span>
+</div>
+{% endif %}
+{% endmacro %}

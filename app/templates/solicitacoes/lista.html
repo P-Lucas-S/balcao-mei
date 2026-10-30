@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% from "_paginacao.html" import paginacao as render_paginacao %}
+{% block titulo %}Solicitações — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Solicitações{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/solicitacoes.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+{% set _fa = f_status or f_tipo or f_de or f_ate or f_usuario %}
+
+{# ── Barra de ações ────────────────────────────────────────────────────── #}
+<div class="toolbar">
+  <a href="{{ url_for('solicitacoes.nova_rapida') }}" class="btn btn-primary">&#128221; Nova Solicitação</a>
+  <a href="{{ url_for('atendimentos.index') }}"
+     class="btn btn-outline"
+     style="color:var(--cor-primaria); border-color:var(--cor-primaria); font-size:0.82rem;"
+     title="Selecione um atendimento e clique em '+ Solicitação'">
+    A partir de Atendimento
+  </a>
+  <a href="{{ url_for('solicitacoes.index', usuario=current_user.id) }}"
+     class="btn btn-outline"
+     style="color:var(--cor-aviso); border-color:var(--cor-aviso);">
+    &#127919; Minha fila
+  </a>
+  <a href="{{ url_for('solicitacoes.exportar_xlsx',
+       status=f_status, tipo=f_tipo,
+       data_de=f_de, data_ate=f_ate) }}"
+     class="btn btn-outline"
+     style="color:var(--cor-sucesso); border-color:var(--cor-sucesso);">
+    &#128202; Exportar Excel
+  </a>
+</div>
+
+{# ── Botão accordion (mobile only) ────────────────────────────────────── #}
+<div class="filtros-mobile-btn">
+  <button type="button"
+          onclick="document.getElementById('filtros-sol').classList.toggle('aberto')"
+          aria-controls="filtros-sol">
+    <span>&#128269; Filtros{% if _fa %}&nbsp;<span class="filtros-badge">&#9679;</span>{% endif %}</span>
+    <span style="font-size:0.75rem; color:var(--texto-suave);">&#9660;</span>
+  </button>
+</div>
+
+{# ── Barra de filtros (desktop) / corpo accordion (mobile) ─────────────── #}
+<form method="GET" action="">
+  <div class="filtros-barra filtros-mobile-corpo {% if _fa %}aberto{% endif %}"
+       id="filtros-sol">
+
+    <div class="filtro-campo filtro-select">
+      <label for="sol-status">Status</label>
+      <select id="sol-status" name="status">
+        <option value="">Todos</option>
+        {% for s in todos_status %}
+        <option value="{{ s.id }}" {{ 'selected' if f_status == s.id|string }}>
+          {{ s.descricao }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filtro-campo filtro-select">
+      <label for="sol-tipo">Tipo</label>
+      <select id="sol-tipo" name="tipo">
+        <option value="">Todos</option>
+        {% for t in todos_tipos %}
+        <option value="{{ t.id }}" {{ 'selected' if f_tipo == t.id|string }}>
+          {{ t.descricao }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filtro-campo filtro-data">
+      <label for="sol-data-de">Data de</label>
+      <input type="date" id="sol-data-de" name="data_de"
+             value="{{ f_de }}">
+    </div>
+
+    <div class="filtro-campo filtro-data">
+      <label for="sol-data-ate">Data até</label>
+      <input type="date" id="sol-data-ate" name="data_ate"
+             value="{{ f_ate }}">
+    </div>
+
+    <div class="filtro-acoes">
+      <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+      <a href="{{ url_for('solicitacoes.index') }}" class="btn btn-secondary">&#10005; Limpar</a>
+    </div>
+
+  </div>
+</form>
+
+<div class="abas-status">
+  <a href="{{ url_for('solicitacoes.index') }}"
+     class="aba-status {% if not f_status %}aba-ativa{% endif %}">
+    Todos
+    <span class="aba-count">{{ paginacao.total }}</span>
+  </a>
+  {% for s in todos_status %}
+  {% set st = s.descricao | lower %}
+  <a href="{{ url_for('solicitacoes.index', status=s.id) }}"
+     class="aba-status
+       {%- if 'pendente'  in st %} aba-pendente
+       {%- elif 'an' in st %}      aba-analise
+       {%- elif 'aprovado' in st %} aba-aprovado
+       {%- elif 'recusado' in st %} aba-recusado
+       {%- else %} aba-default{%- endif %}
+       {% if f_status == s.id|string %} aba-ativa{% endif %}">
+    {{ s.descricao }}
+    <span class="aba-count">{{ contagem_status[s.id] }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% if f_status or f_tipo or f_de or f_ate or f_usuario %}
+<p class="resultado-info">
+  {{ paginacao.total }} resultado(s)
+  {% for s in todos_status %}{% if f_status == s.id|string %}<span class="active-filter">{{ s.descricao }}</span>{% endif %}{% endfor %}
+  {% for t in todos_tipos %}{% if f_tipo == t.id|string %}<span class="active-filter">{{ t.descricao }}</span>{% endif %}{% endfor %}
+  {% if f_de %}<span class="active-filter">de: {{ f_de }}</span>{% endif %}
+  {% if f_ate %}<span class="active-filter">até: {{ f_ate }}</span>{% endif %}
+</p>
+{% endif %}
+
+<div class="card table-to-cards">
+  {% if solicitacoes %}
+  <table class="solicitacoes-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Data</th>
+        <th>Tempo</th>
+        <th>Pessoa</th>
+        <th>Tipo</th>
+        <th>Evento</th>
+        <th>Status</th>
+        <th>Responsável</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in solicitacoes %}
+      {% set st = s.status.descricao | lower %}
+      <tr>
+        <td data-label="#" class="td-mobile-oculto"><span>{{ s.id }}</span></td>
+        <td data-label="Data" class="td-destaque"><span>{{ s.data_solicitacao.strftime('%d/%m/%Y') }}</span></td>
+        {% set dias = (hoje - s.data_solicitacao).days %}
+        <td data-label="Tempo">
+          <span class="idade-pedido
+            {%- if dias < 7 %} idade-ok
+            {%- elif dias < 15 %} idade-alerta
+            {%- else %} idade-critica{%- endif %}">
+            {{ dias }}d
+          </span>
+        </td>
+        <td data-label="Pessoa">
+          <a href="{{ url_for('pessoas.detalhe', id=s.id_pessoa) }}" class="nome-link">
+            {{ s.pessoa.nome_razao_social }}
+          </a>
+        </td>
+        <td data-label="Tipo"><span>{{ s.tipo_solicitacao.descricao }}</span></td>
+        <td data-label="Evento"><span>{{ s.evento.descricao if s.evento else '—' }}</span></td>
+        <td data-label="Status">
+          {% if current_user.perfil.nome in ['administrador', 'supervisor', 'atendente'] %}
+          <div class="status-rapido" data-id="{{ s.id }}">
+            <span class="badge-status badge-clicavel
+              {%- if 'pendente'  in st %} s-pendente
+              {%- elif 'an' in st %}      s-analise
+              {%- elif 'aprovado' in st %} s-aprovado
+              {%- elif 'recusado' in st %} s-recusado
+              {%- else %} s-default{%- endif %}"
+              onclick="abrirMenuStatus(this, {{ s.id }}, {{ s.id_status }})"
+              title="Clique para alterar o status">
+              {{ s.status.descricao }} &#9660;
+            </span>
+            <div class="status-menu" id="menu-{{ s.id }}" style="display:none;">
+              {% for st_opt in todos_status %}
+              {% set st_opt_l = st_opt.descricao | lower %}
+              <div class="status-menu-item
+                {%- if 'pendente'  in st_opt_l %} s-pendente
+                {%- elif 'an' in st_opt_l %}      s-analise
+                {%- elif 'aprovado' in st_opt_l %} s-aprovado
+                {%- elif 'recusado' in st_opt_l %} s-recusado
+                {%- else %} s-default{%- endif %}"
+                onclick="trocarStatus({{ s.id }}, {{ st_opt.id }}, '{{ st_opt.descricao }}')"
+                {% if st_opt.id == s.id_status %}data-atual="true"{% endif %}>
+                {{ st_opt.descricao }}
+                {% if st_opt.id == s.id_status %}&#10003;{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% else %}
+          <span class="badge-status
+            {%- if 'pendente'  in st %} s-pendente
+            {%- elif 'an' in st %}      s-analise
+            {%- elif 'aprovado' in st %} s-aprovado
+            {%- elif 'recusado' in st %} s-recusado
+            {%- else %} s-default{%- endif %}">
+            {{ s.status.descricao }}
+          </span>
+          {% endif %}
+        </td>
+        <td data-label="Responsável"><span>{{ s.usuario.nome }}</span></td>
+        <td data-label="Ações">
+          <div class="acoes">
+            <a href="{{ url_for('solicitacoes.detalhe', id=s.id) }}" class="btn btn-outline">Ver</a>
+            {% if current_user.perfil.nome in ['administrador', 'supervisor', 'atendente'] %}
+            <a href="{{ url_for('solicitacoes.editar', id=s.id) }}" class="btn btn-outline">Editar</a>
+            {% endif %}
+            {% if current_user.perfil.nome in ['administrador'] %}
+            <button class="btn btn-danger-outline"
+                    data-url="{{ url_for('solicitacoes.remover', id=s.id) }}"
+                    data-msg="Remover esta solicitação?"
+                    onclick="confirmarRemocao(this)">
+              Remover
+            </button>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ render_paginacao(paginacao, 'solicitacoes.index',
+     status=f_status, tipo=f_tipo, data_de=f_de, data_ate=f_ate) }}
+  {% else %}
+  <div class="empty-state">
+    <div>&#128203;</div>
+    {% if f_status or f_tipo or f_de or f_ate or f_usuario %}
+      <p>Nenhuma solicitação encontrada para os filtros selecionados.</p>
+    {% else %}
+      <p>Nenhuma solicitação registrada ainda.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{# ── Modal de motivo da recusa ── #}
+<div id="modal-recusa-motivo" class="modal-confirmar-overlay"
+     role="dialog" aria-modal="true" aria-labelledby="modal-recusa-titulo"
+     style="display:none;">
+  <div class="modal-confirmar-box">
+    <div class="modal-confirmar-icone" aria-hidden="true">&#128683;</div>
+    <p class="modal-confirmar-msg" id="modal-recusa-titulo">Motivo da Recusa</p>
+    <div class="form-group" style="margin:12px 0; text-align:left;">
+      <label style="font-size:0.85rem; color:var(--texto-suave);">
+        Motivo <span style="color:var(--cor-perigo);">*</span>
+        <span style="font-weight:400;">(mínimo 20 caracteres)</span>
+      </label>
+      <textarea id="modal-recusa-texto" rows="3"
+                style="width:100%; padding:8px; border:1px solid var(--borda);
+                       border-radius:var(--radius); font-size:0.85rem;
+                       resize:vertical; font-family:inherit;"
+                placeholder="Ex: documentação incompleta, prazo expirado..."></textarea>
+      <p id="modal-recusa-erro"
+         style="color:var(--cor-perigo); font-size:0.78rem;
+                margin-top:4px; display:none;">
+        O motivo deve ter pelo menos 20 caracteres.
+      </p>
+    </div>
+    <div class="modal-confirmar-btns">
+      <button type="button" class="btn btn-secondary" id="modal-recusa-cancelar">
+        Cancelar
+      </button>
+      <button type="button" class="btn btn-danger-outline" id="modal-recusa-confirmar">
+        Confirmar Recusa
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let menuAberto = null;
+let _modalRecusaResolve = null;
+
+function abrirMenuStatus(badge, solId, statusAtualId) {
+  if (menuAberto && menuAberto !== solId) {
+    document.getElementById(`menu-${menuAberto}`).style.display = 'none';
+  }
+  const menu = document.getElementById(`menu-${solId}`);
+  const estaAberto = menu.style.display === 'block';
+  menu.style.display = estaAberto ? 'none' : 'block';
+  menuAberto = estaAberto ? null : solId;
+}
+
+function abrirModalRecusa() {
+  return new Promise(resolve => {
+    _modalRecusaResolve = resolve;
+    document.getElementById('modal-recusa-motivo').style.display = 'flex';
+    document.getElementById('modal-recusa-texto').value = '';
+    document.getElementById('modal-recusa-erro').style.display = 'none';
+    setTimeout(() => document.getElementById('modal-recusa-texto').focus(), 50);
+  });
+}
+
+function _fecharModalRecusa(valor) {
+  document.getElementById('modal-recusa-motivo').style.display = 'none';
+  if (_modalRecusaResolve) { _modalRecusaResolve(valor); _modalRecusaResolve = null; }
+}
+
+async function trocarStatus(solId, novoStatusId, novoStatusDescricao) {
+  document.getElementById(`menu-${solId}`).style.display = 'none';
+  menuAberto = null;
+
+  let motivoRecusa = '';
+  if (novoStatusDescricao.toLowerCase().includes('recus')) {
+    const motivo = await abrirModalRecusa();
+    if (motivo === null) return;
+    motivoRecusa = motivo;
+  }
+
+  const fd = new FormData();
+  fd.append('id_status', novoStatusId);
+  if (motivoRecusa) fd.append('motivo_recusa', motivoRecusa);
+
+  try {
+    const resp = await fetch(`{{ url_for('solicitacoes.index') }}${solId}/status`, {
+      method: 'POST', body: fd,
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      alert('Erro ao alterar status: ' + (data.erro || 'Tente novamente.'));
+      return;
+    }
+
+    const wrapper = document.querySelector(`.status-rapido[data-id="${solId}"]`);
+    const badge   = wrapper.querySelector('.badge-clicavel');
+
+    badge.className = badge.className
+      .replace(/\bs-pendente\b|\bs-analise\b|\bs-aprovado\b|\bs-recusado\b|\bs-default\b/g, '')
+      .trim();
+
+    const desc = novoStatusDescricao.toLowerCase();
+    if (desc.includes('pendente'))      badge.classList.add('s-pendente');
+    else if (desc.includes('an'))       badge.classList.add('s-analise');
+    else if (desc.includes('aprovado')) badge.classList.add('s-aprovado');
+    else if (desc.includes('recus'))    badge.classList.add('s-recusado');
+    else                                badge.classList.add('s-default');
+
+    badge.innerHTML = novoStatusDescricao + ' &#9660;';
+
+    wrapper.querySelectorAll('.status-menu-item').forEach(item => {
+      item.removeAttribute('data-atual');
+      item.textContent = item.textContent.replace('✓', '').trim();
+    });
+    const itemAtual = wrapper.querySelector(
+      `.status-menu-item[onclick*="trocarStatus(${solId}, ${novoStatusId},"]`
+    );
+    if (itemAtual) {
+      itemAtual.dataset.atual = 'true';
+      itemAtual.textContent += ' ✓';
+    }
+
+    const descLower = novoStatusDescricao.toLowerCase();
+    if (descLower.includes('aprovad') || descLower.includes('recus')) {
+      const nomePessoa = document.querySelector(
+        `tr:has(.status-rapido[data-id="${solId}"]) .nome-link`
+      )?.textContent?.trim() || 'o empreendedor';
+      mostrarToastSolic(
+        `📢 Lembre-se de informar ${nomePessoa} que a solicitação foi ${novoStatusDescricao.toUpperCase()}`
+      );
+    }
+
+  } catch (err) {
+    alert('Erro de conexão. Tente novamente.');
+  }
+}
+
+function mostrarToastSolic(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = `
+    position:fixed; bottom:24px; left:50%;
+    transform:translateX(-50%);
+    background:#1f2937; color:white;
+    padding:12px 20px; border-radius:8px;
+    font-size:0.85rem; z-index:9999;
+    box-shadow:0 4px 12px rgba(0,0,0,0.2);
+    max-width:400px; text-align:center;
+    pointer-events:none;
+  `;
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transition = 'opacity 0.3s';
+    setTimeout(() => t.remove(), 300);
+  }, 4000);
+}
+
+document.addEventListener('click', e => {
+  if (menuAberto && !e.target.closest('.status-rapido')) {
+    document.getElementById(`menu-${menuAberto}`).style.display = 'none';
+    menuAberto = null;
+  }
+});
+
+document.getElementById('modal-recusa-confirmar').addEventListener('click', () => {
+  const texto = document.getElementById('modal-recusa-texto').value.trim();
+  if (texto.length < 20) {
+    document.getElementById('modal-recusa-erro').style.display = 'block';
+    document.getElementById('modal-recusa-texto').focus();
+    return;
+  }
+  _fecharModalRecusa(texto);
+});
+document.getElementById('modal-recusa-cancelar').addEventListener('click', () => {
+  _fecharModalRecusa(null);
+});
+document.getElementById('modal-recusa-motivo').addEventListener('click', e => {
+  if (e.target === e.currentTarget) _fecharModalRecusa(null);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' &&
+      document.getElementById('modal-recusa-motivo').style.display === 'flex') {
+    _fecharModalRecusa(null);
+  }
+});
+
+</script>
+{% endblock %}

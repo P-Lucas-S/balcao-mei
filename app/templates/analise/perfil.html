@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% block titulo %}Perfil — Análise{% endblock %}
+{% block titulo_pagina %}Análise de Empreendedores{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<style>
+.analise-nav-wrapper { position: relative; margin-bottom: 24px; }
+.analise-nav-wrapper::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 2px;
+  width: 40px;
+  background: linear-gradient(to right, transparent, var(--bg-pagina));
+  pointer-events: none;
+}
+.analise-nav {
+  display: flex; gap: 4px;
+  border-bottom: 2px solid var(--borda); padding-bottom: 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.analise-nav::-webkit-scrollbar { display: none; }
+.analise-nav a { white-space: nowrap; }
+
+.perfil-kpis  { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.perfil-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+@media (max-width: 768px) {
+  .analise-nav { gap: 2px; }
+  .analise-nav a { padding: 6px 12px !important; font-size: 0.78rem !important; }
+  .perfil-kpis  { grid-template-columns: 1fr 1fr !important; }
+  .perfil-grid2 { grid-template-columns: 1fr !important; }
+}
+</style>
+{% endblock %}
+
+{% block conteudo %}
+
+{# ── Navegação por abas ── #}
+<div class="analise-nav-wrapper">
+<div class="analise-nav">
+  <a href="{{ url_for('analise.index') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128202; Painel Executivo
+  </a>
+  <a href="{{ url_for('analise.jornada') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#129517; Jornada
+  </a>
+  <a href="{{ url_for('analise.demanda') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128200; Demanda
+  </a>
+  <a href="{{ url_for('analise.perfil') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:var(--cor-primaria); color:white;
+            border:2px solid var(--cor-primaria); border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128101; Perfil
+  </a>
+  <a href="{{ url_for('analise.potencial') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#127919; Potencial e Alertas
+  </a>
+</div>
+</div>
+
+{# ── Toolbar: exportações ── #}
+<div class="toolbar" style="margin-bottom:16px;">
+  <div style="margin-left:auto; display:flex; gap:6px;">
+    <a href="{{ url_for('analise.exportar_xlsx', aba='perfil') }}"
+       class="btn btn-outline" style="font-size:0.78rem; padding:5px 10px;">
+      &#128202; Excel
+    </a>
+    <a href="{{ url_for('analise.exportar_pdf', aba='perfil') }}"
+       class="btn btn-outline" style="font-size:0.78rem; padding:5px 10px;">
+      &#128196; PDF
+    </a>
+  </div>
+</div>
+
+{# ── Seção 1 — KPIs de Perfil ── #}
+<div class="perfil-kpis">
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      MEIs Cadastrados
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_p.total_mei }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_p.pct_mei }}% do total de cadastros
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Situação Ativa (RF)
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-sucesso);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_p.total_ativa }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_p.pct_ativa }}% dos que têm dados RF
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Pessoas Físicas
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-acento);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_p.total_pf }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      CPF sem CNPJ vinculado
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px; border-left:3px solid
+       {% if kpis_p.pct_sem_rf > 50 %}var(--cor-perigo)
+       {% elif kpis_p.pct_sem_rf > 20 %}#f59e0b
+       {% else %}var(--borda){% endif %};">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Sem Dados da Receita
+    </p>
+    <p style="font-size:2.2rem; font-weight:800;
+              color:{% if kpis_p.pct_sem_rf > 20 %}#f59e0b{% else %}var(--texto-suave){% endif %};
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_p.pct_sem_rf }}%
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_p.total - kpis_p.total_com_rf }} sem situação cadastral
+    </p>
+  </div>
+
+</div>
+
+{# ── Seção 2 e 3 — Distribuição Tipo + Situação Cadastral ── #}
+<div class="perfil-grid2">
+
+  {# Seção 2 — PF / MEI / PJ #}
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo">&#128100; Tipo de Cadastro</span>
+    </div>
+    <div class="secao-corpo">
+      {% set cores_tipo = ['var(--cor-primaria)', 'var(--cor-acento)', 'var(--cor-teal)'] %}
+      {% set max_tipo = dist_tipo | map(attribute='total') | max %}
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        {% for d in dist_tipo %}
+        {% if d.total > 0 %}
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline;
+                      font-size:0.85rem; margin-bottom:5px;">
+            <span style="font-weight:600; color:var(--texto-principal);">{{ d.tipo }}</span>
+            <span style="font-weight:700; color:{{ cores_tipo[loop.index0 % 3] }};
+                         white-space:nowrap; margin-left:8px;">
+              {{ d.total }}
+              <small style="color:var(--texto-suave); font-weight:500;">&nbsp;({{ d.pct }}%)</small>
+            </span>
+          </div>
+          <div style="height:20px; border-radius:4px; background:var(--borda); overflow:hidden;">
+            <div style="height:100%; border-radius:4px;
+                        background:{{ cores_tipo[loop.index0 % 3] }};
+                        width:{{ ((d.total / max_tipo) * 100)|int if max_tipo > 0 else 0 }}%;
+                        transition:width 0.3s ease;"></div>
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# Seção 3 — Situação Cadastral #}
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo">&#128203; Situação Cadastral (RF)</span>
+    </div>
+    <div class="secao-corpo">
+      {% if situacao.dados %}
+      {% set max_sit = situacao.dados | map(attribute='total') | max %}
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        {% for s in situacao.dados %}
+        {% set sit = s.situacao | upper %}
+        {% if 'ATIVA' in sit %}
+          {% set cor = 'var(--cor-sucesso)' %}
+          {% set cor_bg = '#d1fae5' %}
+        {% elif 'BAIXADA' in sit or 'INAPTA' in sit %}
+          {% set cor = 'var(--cor-perigo)' %}
+          {% set cor_bg = '#fee2e2' %}
+        {% elif 'SUSPENSA' in sit %}
+          {% set cor = '#92400e' %}
+          {% set cor_bg = '#fef3c7' %}
+        {% else %}
+          {% set cor = 'var(--texto-suave)' %}
+          {% set cor_bg = 'var(--bg-pagina)' %}
+        {% endif %}
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline;
+                      font-size:0.85rem; margin-bottom:5px;">
+            <span style="font-weight:600; color:{{ cor }};">{{ s.situacao }}</span>
+            <span style="font-weight:700; color:{{ cor }};
+                         background:{{ cor_bg }};
+                         padding:1px 8px; border-radius:20px; font-size:0.8rem;
+                         white-space:nowrap; margin-left:8px;">
+              {{ s.total }}
+            </span>
+          </div>
+          <div style="height:18px; border-radius:4px; background:var(--borda); overflow:hidden;">
+            <div style="height:100%; border-radius:4px;
+                        background:{{ cor }};
+                        width:{{ ((s.total / max_sit) * 100)|int if max_sit > 0 else 0 }}%;
+                        transition:width 0.3s ease;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if situacao.sem_info > 0 %}
+      <div style="display:flex; align-items:flex-start; gap:8px; margin-top:12px;
+                  padding:10px 12px; background:#fef3c7;
+                  border-left:3px solid #f59e0b; border-radius:var(--radius);">
+        <p style="font-size:0.78rem; color:#92400e; font-weight:600; margin:0; line-height:1.4;">
+          &#9888;&#65039; {{ situacao.sem_info }} cadastro(s) sem situação cadastral —
+          sincronize com a Receita Federal.
+        </p>
+      </div>
+      {% endif %}
+      {% else %}
+      <p style="color:var(--texto-suave); font-size:0.88rem;">
+        Nenhum dado de situação cadastral. Sincronize com a Receita Federal.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{# ── Seção 4 — Top 10 CNAEs ── #}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#127981; Top 10 CNAEs Mais Frequentes</span>
+  </div>
+  <div class="secao-corpo">
+    {% if top_cnaes %}
+    {% set max_cnae = top_cnaes[0].total %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for c in top_cnaes %}
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:0.82rem; font-weight:600; color:var(--texto-principal);
+                     flex:0 0 auto; width:220px; overflow:hidden;
+                     text-overflow:ellipsis; white-space:nowrap;"
+              title="{{ c.cnae }}">{{ c.cnae }}</span>
+        <div style="flex:1; height:16px; border-radius:4px;
+                    background:var(--borda); overflow:hidden;">
+          <div style="height:100%; border-radius:4px; background:var(--cor-acento);
+                      width:{{ ((c.total / max_cnae) * 100)|int if max_cnae > 0 else 0 }}%;
+                      transition:width 0.3s ease;"></div>
+        </div>
+        <span style="font-size:0.8rem; color:var(--cor-primaria); font-weight:700;
+                     width:36px; text-align:right; flex-shrink:0;">{{ c.total }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--texto-suave); font-size:0.88rem;">
+      Nenhum CNAE registrado. Sincronize com a Receita Federal.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Seção 5 e 6 — Sexo + Escolaridade ── #}
+<div class="perfil-grid2">
+
+  {# Seção 5 — Distribuição por Sexo #}
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo">&#9898; Distribuição por Sexo</span>
+    </div>
+    <div class="secao-corpo">
+      {% if dist_sexo.dados %}
+      {% set cores_sexo = ['var(--cor-primaria)', 'var(--cor-acento)', 'var(--texto-suave)'] %}
+      {% set max_sexo = dist_sexo.dados | map(attribute='total') | max %}
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        {% for d in dist_sexo.dados %}
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline;
+                      font-size:0.85rem; margin-bottom:5px;">
+            <span style="font-weight:600; color:var(--texto-principal);">{{ d.sexo }}</span>
+            <span style="font-weight:700; color:{{ cores_sexo[loop.index0 % 3] }};
+                         white-space:nowrap; margin-left:8px;">
+              {{ d.total }}
+              <small style="color:var(--texto-suave); font-weight:500;">&nbsp;({{ d.pct }}%)</small>
+            </span>
+          </div>
+          <div style="height:18px; border-radius:4px; background:var(--borda); overflow:hidden;">
+            <div style="height:100%; border-radius:4px;
+                        background:{{ cores_sexo[loop.index0 % 3] }};
+                        width:{{ ((d.total / max_sexo) * 100)|int if max_sexo > 0 else 0 }}%;
+                        transition:width 0.3s ease;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if dist_sexo.sem_info > 0 %}
+      <p style="font-size:0.75rem; color:var(--texto-suave); margin:12px 0 0;">
+        &#128204; {{ dist_sexo.sem_info }} cadastro(s) sem sexo informado
+        ({{ ((dist_sexo.sem_info / dist_sexo.total) * 100)|int }}% do total).
+      </p>
+      {% endif %}
+      {% else %}
+      <p style="color:var(--texto-suave); font-size:0.88rem;">
+        Nenhum cadastro com sexo preenchido.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Seção 6 — Distribuição por Escolaridade #}
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo">&#127891; Distribuição por Escolaridade</span>
+    </div>
+    <div class="secao-corpo">
+      {% if por_escolaridade.dados %}
+      {% set max_esc = por_escolaridade.dados | map(attribute='total') | max %}
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        {% for e in por_escolaridade.dados %}
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:0.82rem; font-weight:600; color:var(--texto-principal);
+                       width:130px; flex-shrink:0; overflow:hidden;
+                       text-overflow:ellipsis; white-space:nowrap;"
+                title="{{ e.nivel }}">{{ e.nivel }}</span>
+          <div style="flex:1; height:16px; border-radius:4px; background:var(--borda); overflow:hidden;">
+            <div style="height:100%; border-radius:4px; background:var(--cor-teal);
+                        width:{{ ((e.total / max_esc) * 100)|int if max_esc > 0 else 0 }}%;
+                        transition:width 0.3s ease;"></div>
+          </div>
+          <span style="font-size:0.8rem; color:var(--cor-primaria); font-weight:700;
+                       width:36px; text-align:right; flex-shrink:0;">{{ e.total }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% if por_escolaridade.sem_info > 0 %}
+      <p style="font-size:0.75rem; color:var(--texto-suave); margin:12px 0 0;">
+        &#128204; {{ por_escolaridade.sem_info }} cadastro(s) sem escolaridade informada.
+      </p>
+      {% endif %}
+      {% else %}
+      <p style="color:var(--texto-suave); font-size:0.88rem;">
+        Nenhum cadastro com escolaridade preenchida.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

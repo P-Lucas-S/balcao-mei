@@ -1,0 +1,644 @@
+{% extends "base.html" %}
+{% block titulo %}Demanda — Análise{% endblock %}
+{% block titulo_pagina %}Análise de Empreendedores{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+.analise-nav-wrapper { position: relative; margin-bottom: 24px; }
+.analise-nav-wrapper::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 2px;
+  width: 40px;
+  background: linear-gradient(to right, transparent, var(--bg-pagina));
+  pointer-events: none;
+}
+.analise-nav {
+  display: flex; gap: 4px;
+  border-bottom: 2px solid var(--borda); padding-bottom: 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.analise-nav::-webkit-scrollbar { display: none; }
+.analise-nav a { white-space: nowrap; }
+
+.demanda-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.demanda-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+.heatmap-mobile { display: none; }
+
+@media (max-width: 768px) {
+  .analise-nav { gap: 2px; }
+  .analise-nav a { padding: 6px 12px !important; font-size: 0.78rem !important; }
+  .demanda-kpis { grid-template-columns: 1fr 1fr !important; }
+  .demanda-grid-2 { grid-template-columns: 1fr !important; }
+  .heatmap-desktop { display: none; }
+  .heatmap-mobile  { display: block; }
+  #mapa-calor { height: 300px; }
+}
+</style>
+{% endblock %}
+
+{% block conteudo %}
+
+{# ── Navegação por abas ── #}
+<div class="analise-nav-wrapper">
+<div class="analise-nav">
+  <a href="{{ url_for('analise.index',
+             data_inicio=data_inicio.isoformat(),
+             data_fim=data_fim.isoformat()) }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128202; Painel Executivo
+  </a>
+  <a href="{{ url_for('analise.jornada',
+             data_inicio=data_inicio.isoformat(),
+             data_fim=data_fim.isoformat()) }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#129517; Jornada
+  </a>
+  <a href="{{ url_for('analise.demanda',
+             data_inicio=data_inicio.isoformat(),
+             data_fim=data_fim.isoformat()) }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:var(--cor-primaria); color:white;
+            border:2px solid var(--cor-primaria); border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128200; Demanda
+  </a>
+  <a href="{{ url_for('analise.perfil') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128101; Perfil
+  </a>
+  <a href="{{ url_for('analise.potencial') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#127919; Potencial e Alertas
+  </a>
+</div>
+</div>
+
+{# ── Toolbar: exportações ── #}
+<div class="toolbar" style="margin-bottom:8px;">
+  <div style="margin-left:auto; display:flex; gap:6px;">
+    <a href="{{ url_for('analise.exportar_xlsx', aba='demanda',
+               data_inicio=data_inicio.isoformat(),
+               data_fim=data_fim.isoformat()) }}"
+       class="btn btn-outline" style="font-size:0.78rem; padding:5px 10px;">
+      &#128202; Excel
+    </a>
+    <a href="{{ url_for('analise.exportar_pdf', aba='demanda',
+               data_inicio=data_inicio.isoformat(),
+               data_fim=data_fim.isoformat()) }}"
+       class="btn btn-outline" style="font-size:0.78rem; padding:5px 10px;">
+      &#128196; PDF
+    </a>
+  </div>
+</div>
+
+{# ── Filtros de período ── #}
+<form method="GET" style="margin-bottom:16px;">
+  <div class="filtros-barra">
+    <div class="filtro-campo filtro-data">
+      <label>De</label>
+      <input type="date" name="data_inicio" value="{{ data_inicio.isoformat() }}">
+    </div>
+    <div class="filtro-campo filtro-data">
+      <label>Até</label>
+      <input type="date" name="data_fim" value="{{ data_fim.isoformat() }}">
+    </div>
+    <div class="filtro-acoes">
+      <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+      <a href="{{ url_for('analise.demanda',
+                 data_inicio=hoje.replace(day=1).isoformat(),
+                 data_fim=hoje.isoformat()) }}"
+         class="btn btn-secondary">Este mês</a>
+      <a href="{{ url_for('analise.demanda',
+                 data_inicio=mes_ant_inicio.isoformat(),
+                 data_fim=mes_ant_fim.isoformat()) }}"
+         class="btn btn-secondary">Mês anterior</a>
+    </div>
+  </div>
+</form>
+
+{# ── Seção 1 — KPIs de Demanda ── #}
+<div class="demanda-kpis">
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Tipo Mais Procurado
+    </p>
+    <p style="font-size:1.15rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1.2; margin:0 0 6px; word-break:break-word;">
+      {{ kpis_d.tipo_top }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_d.tipo_top_total }} ocorrência(s) no período
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Dia Mais Movimentado
+    </p>
+    <p style="font-size:1.8rem; font-weight:800; color:var(--cor-acento);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_d.dia_top }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_d.dia_top_total }} atendimentos
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Horário de Pico
+    </p>
+    <p style="font-size:2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_d.hora_top }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_d.hora_top_total }} atendimentos
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Mês Mais Intenso
+    </p>
+    <p style="font-size:2rem; font-weight:800; color:var(--cor-teal);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_d.mes_top }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_d.mes_top_total }} atendimentos
+    </p>
+  </div>
+
+</div>
+
+{# ── Seção 2 — Tipos de Atendimento ── #}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#128200; Tipos de Atendimento</span>
+  </div>
+  <div class="secao-corpo">
+    {% if por_tipo %}
+    {% set max_tipo = por_tipo[0].total %}
+    <div style="display:flex; flex-direction:column; gap:10px; max-width:640px;">
+      {% for t in por_tipo %}
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline;
+                    font-size:0.85rem; margin-bottom:5px;">
+          <span style="font-weight:600; color:var(--texto-principal);">{{ t.tipo }}</span>
+          <span style="color:var(--cor-primaria); font-weight:700; white-space:nowrap; margin-left:8px;">
+            {{ t.total }}
+            <small style="color:var(--texto-suave); font-weight:500;">&nbsp;({{ t.pct }}%)</small>
+          </span>
+        </div>
+        <div style="height:20px; border-radius:4px; background:var(--borda); overflow:hidden;">
+          <div style="height:100%; border-radius:4px; background:var(--cor-primaria);
+                      width:{{ ((t.total / max_tipo) * 100)|int if max_tipo > 0 else 0 }}%;
+                      transition:width 0.3s ease;"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--texto-suave); font-size:0.88rem;">Sem atendimentos no período.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Seção 3 & 4 — Dia da Semana + Hora do Dia ── #}
+<div class="demanda-grid-2">
+
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo">&#128197; Dia da Semana</span>
+    </div>
+    <div class="secao-corpo">
+      {% if dias_semana %}
+      {% set max_dia = dias_semana | map(attribute='total') | max %}
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        {% for d in dias_semana %}
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:0.82rem; font-weight:600; color:var(--texto-principal);
+                       width:52px; flex-shrink:0;">{{ d.dia }}</span>
+          <div style="flex:1; height:20px; border-radius:4px; background:var(--borda); overflow:hidden;">
+            <div style="height:100%; border-radius:4px; background:var(--cor-acento);
+                        width:{{ ((d.total / max_dia) * 100)|int if max_dia > 0 else 0 }}%;
+                        transition:width 0.3s ease;"></div>
+          </div>
+          <span style="font-size:0.8rem; color:var(--texto-suave); white-space:nowrap;
+                       width:40px; text-align:right; flex-shrink:0;">{{ d.total }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:var(--texto-suave); font-size:0.88rem;">Sem dados.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="secao-card">
+    <div class="secao-header">
+      <span class="secao-titulo">&#9201; Hora do Dia</span>
+    </div>
+    <div class="secao-corpo">
+      {% if hora_pico %}
+      {% set max_hora = hora_pico | map(attribute='total') | max %}
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        {% for h in hora_pico %}
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:0.78rem; font-weight:600; color:var(--texto-suave);
+                       width:36px; flex-shrink:0;">{{ h.hora }}</span>
+          <div style="flex:1; height:16px; border-radius:4px; background:var(--borda); overflow:hidden;">
+            <div style="height:100%; border-radius:4px;
+                        background:var(--cor-teal);
+                        width:{{ ((h.total / max_hora) * 100)|int if max_hora > 0 else 0 }}%;
+                        transition:width 0.3s ease;"></div>
+          </div>
+          <span style="font-size:0.78rem; color:var(--texto-suave); white-space:nowrap;
+                       width:36px; text-align:right; flex-shrink:0;">{{ h.total }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:var(--texto-suave); font-size:0.88rem;">Sem dados.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{# ── Seção 5 — Top 10 Bairros ── #}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#128205; Top 10 Bairros</span>
+    <span style="font-size:0.72rem; color:var(--texto-suave);">empreendedores únicos atendidos</span>
+  </div>
+  <div class="secao-corpo">
+    {% if bairros.bairros %}
+    {% set max_b = bairros.bairros[0].unicos %}
+    <div style="display:flex; flex-direction:column; gap:10px; max-width:640px;">
+      {% for b in bairros.bairros %}
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:0.82rem; font-weight:600; color:var(--texto-principal);
+                     width:160px; flex-shrink:0; overflow:hidden;
+                     text-overflow:ellipsis; white-space:nowrap;"
+              title="{{ b.bairro }}">{{ b.bairro }}</span>
+        <div style="flex:1; height:18px; border-radius:4px; background:var(--borda); overflow:hidden;">
+          <div style="height:100%; border-radius:4px; background:var(--cor-acento);
+                      width:{{ ((b.unicos / max_b) * 100)|int if max_b > 0 else 0 }}%;
+                      transition:width 0.3s ease;"></div>
+        </div>
+        <span style="font-size:0.8rem; color:var(--cor-primaria); font-weight:700;
+                     white-space:nowrap; width:36px; text-align:right; flex-shrink:0;">
+          {{ b.unicos }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if bairros.sem_bairro > 0 %}
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:12px 0 0;">
+      &#128204; {{ bairros.sem_bairro }} empreendedor(es) sem bairro identificado no período.
+    </p>
+    {% endif %}
+    {% else %}
+    <p style="color:var(--texto-suave); font-size:0.88rem;">
+      Nenhum cadastro com bairro identificado no período.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Seção 6 — Mapa de Calor Geográfico ── #}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#128506; Mapa de Calor — Demanda por Bairro</span>
+    <span style="font-size:0.72rem; color:var(--texto-suave);">
+      intensidade proporcional ao nº de empreendedores atendidos
+    </span>
+  </div>
+  <div class="secao-corpo" style="padding:0;">
+    <div id="mapa-calor"
+         style="height:420px; border-radius:0 0 var(--radius-lg) var(--radius-lg); z-index:0;">
+    </div>
+    <p style="font-size:0.72rem; color:var(--texto-suave);
+              padding:8px 16px; margin:0; font-style:italic;">
+      &#128205; Marcador = sede da {{ marca.ORG_NOME }} (endereço fictício).
+      Cores quentes = maior concentração de empreendedores atendidos.
+      Coordenadas aproximadas — verificar antes do deploy em produção.
+    </p>
+  </div>
+</div>
+
+{# ── Seção extra — Heatmap Meses × Tipos ── #}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#128197; Heatmap — Meses × Tipos de Atendimento</span>
+  </div>
+  <div class="secao-corpo">
+    <div class="heatmap-desktop" style="overflow-x:auto;">
+      {% if heatmap.tipos %}
+      <table style="border-collapse:collapse; font-size:0.78rem; min-width:500px;">
+        <thead>
+          <tr>
+            <th style="padding:6px 10px; text-align:left; color:var(--texto-suave);
+                       font-size:0.72rem; font-weight:700; min-width:60px;">Mês</th>
+            {% for tipo in heatmap.tipos %}
+            <th style="padding:6px 8px; text-align:center; color:var(--texto-suave);
+                       font-size:0.72rem; font-weight:700; min-width:80px;
+                       max-width:100px; word-break:break-word;">{{ tipo }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for mes in heatmap.meses %}
+          {% set row_idx = loop.index0 %}
+          {% set linha = heatmap.matriz[row_idx] %}
+          <tr>
+            <td style="padding:6px 10px; font-weight:600; color:var(--texto-principal);">{{ mes }}</td>
+            {% for tipo in heatmap.tipos %}
+            {% set val = linha[loop.index0] %}
+            {% set op = (val / heatmap.max_val * 0.8) | round(2) %}
+            <td style="padding:6px 8px; text-align:center;
+                       background:rgba(15,76,92,{{ op }});
+                       color:{% if op > 0.4 %}white{% else %}var(--texto-principal){% endif %};
+                       font-weight:{% if val > 0 %}600{% else %}400{% endif %};
+                       border-radius:4px;">
+              {{ val if val > 0 else '—' }}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p style="font-size:0.72rem; color:var(--texto-suave); margin:10px 0 0; font-style:italic;">
+        Cores mais escuras = maior volume.
+      </p>
+      {% else %}
+      <p style="color:var(--texto-suave); font-size:0.88rem;">Sem dados no período.</p>
+      {% endif %}
+    </div>
+
+    <div class="heatmap-mobile">
+      {% if heatmap.tipos %}
+      {% set totais_tipo = [] %}
+      {% for j in range(heatmap.tipos|length) %}
+        {% set ns = namespace(v=0) %}
+        {% for i in range(heatmap.meses|length) %}
+          {% set ns.v = ns.v + heatmap.matriz[i][j] %}
+        {% endfor %}
+        {% set _ = totais_tipo.append({'tipo': heatmap.tipos[j], 'total': ns.v}) %}
+      {% endfor %}
+      {% set max_t = totais_tipo | map(attribute='total') | max %}
+      {% for t in totais_tipo | sort(attribute='total', reverse=True) %}
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <span style="font-size:0.78rem; font-weight:600; width:120px; flex-shrink:0;
+                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+              title="{{ t.tipo }}">{{ t.tipo }}</span>
+        <div style="flex:1; height:12px; border-radius:3px; background:var(--borda); overflow:hidden;">
+          <div style="height:100%; border-radius:3px; background:var(--cor-primaria);
+                      width:{{ ((t.total / max_t) * 100)|int if max_t > 0 else 0 }}%;"></div>
+        </div>
+        <span style="font-size:0.78rem; color:var(--cor-primaria); font-weight:700;
+                     width:30px; text-align:right; flex-shrink:0;">{{ t.total }}</span>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p style="color:var(--texto-suave); font-size:0.88rem;">Sem dados no período.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script>
+(function() {
+  var SALA = [{{ marca.SEDE_LAT }}, {{ marca.SEDE_LNG }}];
+
+  var COORDS_BAIRROS = {{ coords_bairros | tojson }};
+
+  var DADOS_BAIRROS = [
+    {% for b in bairros.bairros %}
+    { bairro: {{ b.bairro | tojson }}, total: {{ b.unicos }} },
+    {% endfor %}
+  ];
+
+  var mapa = L.map('mapa-calor', {
+    center: SALA,
+    zoom: 14,
+    zoomControl: true,
+    scrollWheelZoom: false,
+    dragging: true,
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 18,
+  }).addTo(mapa);
+
+  var iconeSala = L.divIcon({
+    html: '<div style="background:#0f4c5c;color:white;border-radius:50%;' +
+          'width:32px;height:32px;display:flex;align-items:center;' +
+          'justify-content:center;font-size:16px;' +
+          'box-shadow:0 2px 8px rgba(0,0,0,0.4);border:2px solid white;">&#127963;</div>',
+    className: '',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+
+  L.marker(SALA, { icon: iconeSala })
+    .addTo(mapa)
+    .bindPopup(
+      '<strong>{{ marca.ORG_NOME }}</strong><br>' +
+      'Endereço fictício (demonstração)<br>' +
+      '{{ marca.CIDADE_UF }}'
+    );
+
+  var maxTotal = Math.max.apply(null, DADOS_BAIRROS.map(function(d){ return d.total; }).concat([1]));
+  var pontos = [];
+
+  DADOS_BAIRROS.forEach(function(d) {
+    var nome = d.bairro.trim();
+    var coords = COORDS_BAIRROS[nome];
+    if (!coords) {
+      var chave = Object.keys(COORDS_BAIRROS).find(function(k) {
+        return nome.toLowerCase().indexOf(k.toLowerCase()) !== -1 ||
+               k.toLowerCase().indexOf(nome.toLowerCase()) !== -1;
+      });
+      coords = chave ? COORDS_BAIRROS[chave] : null;
+    }
+    if (coords) {
+      pontos.push([coords[0], coords[1], d.total / maxTotal]);
+    }
+  });
+
+  if (pontos.length > 0) {
+    L.heatLayer(pontos, {
+      radius: 60,
+      blur: 40,
+      minOpacity: 0.5,
+      max: 1.0,
+      gradient: {
+        0.2: '#ffeda0',
+        0.4: '#feb24c',
+        0.6: '#f03b20',
+        0.8: '#bd0026',
+        1.0: '#7a0000',
+      },
+    }).addTo(mapa);
+  }
+
+  // ── Camada choropleth de polígonos ──────────────────────────────────────────
+  var POLIGONOS = {{ poligonos_bairros | tojson }};
+
+  console.log('Poligonos features:', POLIGONOS.features.length);
+  if (POLIGONOS.features.length > 0) {
+    console.log('Primeira feature:', JSON.stringify(POLIGONOS.features[0]));
+  }
+
+  function normalizar(s) {
+    return (s || '').toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9\s]/g, '').trim();
+  }
+
+  var contagemBairros = {};
+  {{ bairros.bairros | tojson }}.forEach(function(b) {
+    if (b.bairro) contagemBairros[normalizar(b.bairro)] = b.unicos;
+  });
+
+  function getContagem(nomeBairro) {
+    var n = normalizar(nomeBairro);
+    if (contagemBairros[n] !== undefined) return contagemBairros[n];
+    for (var k in contagemBairros) {
+      if (n.indexOf(k) !== -1 || k.indexOf(n) !== -1) return contagemBairros[k];
+    }
+    return 0;
+  }
+
+  var maxContagem = Math.max.apply(null, Object.values(contagemBairros).concat([1]));
+
+  function corPoligono(contagem) {
+    if (contagem === 0) return '#f3f4f6';
+    var pct = contagem / maxContagem;
+    if (pct < 0.25) return '#fde68a';
+    if (pct < 0.5)  return '#fb923c';
+    if (pct < 0.75) return '#ef4444';
+    return '#7f1d1d';
+  }
+
+  var camadaPoligonos = L.geoJSON(POLIGONOS, {
+    style: function(feature) {
+      var contagem = getContagem(feature.properties.name);
+      return {
+        fillColor: corPoligono(contagem),
+        fillOpacity: 0.55,
+        color: '#fff',
+        weight: 1.5,
+        opacity: 0.8,
+      };
+    },
+    onEachFeature: function(feature, layer) {
+      var nome = feature.properties.name;
+      var contagem = getContagem(nome);
+      layer.bindTooltip(
+        '<strong>' + nome + '</strong><br>' +
+        (contagem > 0 ? contagem + ' empreendedor(es)' : 'Sem dados no período'),
+        { sticky: true, direction: 'top' }
+      );
+    },
+  });
+
+  var btnToggle = L.control({position: 'topleft'});
+  btnToggle.onAdd = function() {
+    var div = L.DomUtil.create('div');
+    var temPoligonos = POLIGONOS.features && POLIGONOS.features.length > 0;
+    var btn = L.DomUtil.create('button', '', div);
+    btn.id = 'btn-poligonos';
+    btn.textContent = '⬡ Mostrar bairros';
+    btn.style.cssText =
+      'background:#fff;border:2px solid #ccc;border-radius:4px;' +
+      'padding:4px 10px;font-size:11px;cursor:pointer;' +
+      'font-family:Inter,sans-serif;color:#374151;' +
+      'box-shadow:0 1px 4px rgba(0,0,0,0.2);';
+    if (!temPoligonos) {
+      btn.disabled = true;
+      btn.title = 'Polígonos indisponíveis';
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+    }
+    L.DomEvent.disableClickPropagation(div);
+    btn.onclick = function() {
+      if (mapa.hasLayer(camadaPoligonos)) {
+        mapa.removeLayer(camadaPoligonos);
+        btn.textContent = '⬡ Mostrar bairros';
+        btn.style.borderColor = '#ccc';
+        btn.style.color = '#374151';
+      } else {
+        camadaPoligonos.addTo(mapa);
+        btn.textContent = '⬡ Ocultar bairros';
+        btn.style.borderColor = '#0f4c5c';
+        btn.style.color = '#0f4c5c';
+      }
+    };
+    return div;
+  };
+  btnToggle.addTo(mapa);
+
+  var legenda = L.control({position: 'bottomright'});
+  legenda.onAdd = function(map) {
+    var div = L.DomUtil.create('div', 'mapa-legenda');
+    div.style.cssText = [
+      'background:#fff',
+      'padding:10px 14px',
+      'border-radius:8px',
+      'box-shadow:0 2px 6px rgba(0,0,0,0.15)',
+      'font-family:Inter,sans-serif',
+      'font-size:11px',
+      'color:#374151',
+      'min-width:160px',
+      'pointer-events:none',
+    ].join(';');
+    div.innerHTML =
+      '<strong style="display:block;margin-bottom:6px;font-size:12px;color:#0f2a30;">' +
+      'Empreendedores atendidos</strong>' +
+      '<div style="background:linear-gradient(to right,#ffeda0,#feb24c,#f03b20,#bd0026,#7a0000);' +
+      'height:10px;border-radius:4px;margin-bottom:4px;"></div>' +
+      '<div style="display:flex;justify-content:space-between;">' +
+      '<span style="color:#9ca3af;">Menor</span>' +
+      '<span style="color:#9ca3af;">Maior</span>' +
+      '</div>';
+    return div;
+  };
+  legenda.addTo(mapa);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block titulo %}Atendimento Rápido — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Atendimento Rápido{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/atendimentos.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+
+<div class="rapido-wrapper">
+
+  <div class="iniciar-dica">
+    ⚡ <strong>Modo rápido</strong> — data e hora preenchidas automaticamente.
+    Use <a href="{{ url_for('atendimentos.novo') }}" class="dica-link">formulário completo</a>
+    para mais opções.
+  </div>
+
+  <div class="card rapido-card">
+    <form method="POST" id="form-rapido">
+
+      {# Busca de pessoa #}
+      <div class="form-group" style="margin-bottom:20px;">
+        <label>Pessoa Atendida</label>
+        <div class="pessoa-search-wrapper">
+          <input type="text" id="pessoa-busca"
+                 placeholder="Digite nome, CPF ou CNPJ…"
+                 autocomplete="off"
+                 autofocus>
+          <span class="pessoa-clear" id="pessoa-clear">&#10005;</span>
+          <div class="pessoa-dropdown" id="pessoa-dropdown"></div>
+        </div>
+        <div class="pessoa-selecionada" id="pessoa-selecionada"></div>
+        <input type="hidden" id="id_pessoa" name="id_pessoa" required>
+        <div id="servicos-mei" style="display:none;"></div>
+      </div>
+
+      {# Tipos rápidos — botões toggle #}
+      <div class="form-group" style="margin-bottom:20px;">
+        <label>Tipo de Atendimento <span style="color:var(--cor-perigo);">*</span></label>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
+          {% for tipo in servicos_rapidos %}
+          <label style="cursor:pointer;">
+            <input type="checkbox" name="servicos" value="{{ tipo.id }}"
+                   style="display:none;" onchange="toggleBotao(this)">
+            <span class="btn-tipo-rapido" id="btn-tipo-{{ tipo.id }}">
+              {{ tipo.descricao }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# Observação opcional #}
+      <div class="form-group" style="margin-bottom:24px;">
+        <label>Observação <span class="opcional">(opcional)</span></label>
+        <input type="text" name="observacao"
+               placeholder="Ex: DAS jan/fev/mar 2025…">
+      </div>
+
+      <div class="btn-row" style="margin-top:0;">
+        <button type="submit" class="btn btn-primary"
+                style="padding:10px 28px; font-size:0.95rem;">
+          &#9889; Registrar Agora
+        </button>
+        <button type="submit" name="proximo" value="1"
+                class="btn btn-outline"
+                style="padding:10px 28px; font-size:0.95rem;">
+          &#9889; Registrar e iniciar outro
+        </button>
+        <a href="{{ url_for('atendimentos.index') }}"
+           class="btn btn-secondary">Cancelar</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Dados das pessoas ─────────────────────────────────────────────────
+const PESSOAS = [
+  {% for p in pessoas %}
+  { id: {{ p.id }},
+    nome: {{ p.nome_razao_social | tojson }},
+    doc:  {{ (p.cpf or p.cnpj or '') | tojson }},
+    cnpj: {{ (p.cnpj or '') | tojson }} }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+const busca       = document.getElementById('pessoa-busca');
+const hiddenId    = document.getElementById('id_pessoa');
+const dropdown    = document.getElementById('pessoa-dropdown');
+const selecionada = document.getElementById('pessoa-selecionada');
+const clearBtn    = document.getElementById('pessoa-clear');
+
+busca.addEventListener('input', function () {
+  const q = this.value.trim().toLowerCase();
+  clearBtn.classList.toggle('visivel', q.length > 0);
+  if (q.length < 1) { dropdown.classList.remove('aberto'); return; }
+
+  const qDigits = q.replace(/\D/g, '');
+  const matches = PESSOAS.filter(p => {
+    const docDigits = p.doc.replace(/\D/g, '');
+    return p.nome.toLowerCase().includes(q)
+      || p.doc.toLowerCase().includes(q)
+      || (qDigits.length >= 3 && docDigits.includes(qDigits));
+  }).slice(0, 8);
+
+  dropdown.innerHTML = matches.length === 0
+    ? '<div class="dropdown-item sem-resultado">Nenhuma pessoa encontrada.</div>'
+    : matches.map(p =>
+        `<div class="dropdown-item" data-id="${p.id}"
+              data-nome="${p.nome}" data-doc="${p.doc}">
+          ${p.nome}${p.doc ? `<span class="doc"> ${p.doc}</span>` : ''}
+        </div>`
+      ).join('');
+
+  dropdown.querySelectorAll('.dropdown-item[data-id]').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      hiddenId.value = el.dataset.id;
+      busca.value    = el.dataset.nome;
+      selecionada.textContent = el.dataset.doc
+        ? `${el.dataset.nome} — ${el.dataset.doc}` : el.dataset.nome;
+      selecionada.classList.add('visivel');
+      clearBtn.classList.add('visivel');
+      dropdown.classList.remove('aberto');
+      const pessoa = PESSOAS.find(p => p.id == el.dataset.id);
+      atualizarServicorsMEI(pessoa ? pessoa.cnpj : '');
+    });
+  });
+  dropdown.classList.add('aberto');
+});
+
+clearBtn.addEventListener('click', () => {
+  busca.value = ''; hiddenId.value = '';
+  selecionada.classList.remove('visivel');
+  clearBtn.classList.remove('visivel');
+  dropdown.classList.remove('aberto');
+  atualizarServicorsMEI('');
+  busca.focus();
+});
+
+busca.addEventListener('blur', () =>
+  setTimeout(() => dropdown.classList.remove('aberto'), 150));
+
+// ── Serviços MEI ──────────────────────────────────────────────────────
+function atualizarServicorsMEI(cnpj) {
+  const container = document.getElementById('servicos-mei');
+  if (!container) return;
+
+  if (cnpj) {
+    const cnpjLimpo = cnpj.replace(/\D/g, '');
+    container.innerHTML = `
+      <div class="card-servicos-mei" style="margin-top:16px;">
+        <div class="card-servicos-info">
+          <p class="card-servicos-label">Serviços MEI — CNPJ ${cnpj}</p>
+          <p class="card-servicos-sub">Clique para abrir o portal. O CNPJ é copiado automaticamente.</p>
+        </div>
+        <div class="card-servicos-btns">
+          <a href="https://www8.receita.fazenda.gov.br/simplesnacional/aplicacoes/atspo/pgmei.app/identificacao"
+             target="_blank" class="btn-servico btn-servico-destaque"
+             onclick="copiarCNPJ('${cnpjLimpo}')">&#128203; Emitir DAS</a>
+          <a href="https://www8.receita.fazenda.gov.br/SimplesNacional/Aplicacoes/ATSPO/dasnsimei.app/Identificacao"
+             target="_blank" class="btn-servico"
+             onclick="copiarCNPJ('${cnpjLimpo}')">&#128196; Declaração Anual</a>
+          <a href="https://mei.receita.economia.gov.br/certificado/login"
+             target="_blank" class="btn-servico"
+             onclick="copiarCNPJ('${cnpjLimpo}')">&#127994; Comprovante CCMEI</a>
+          <a href="https://www.gov.br/empresas-e-negocios/pt-br/empreendedor/verificar-debitos-do-mei"
+             target="_blank" class="btn-servico"
+             onclick="copiarCNPJ('${cnpjLimpo}')">&#9888; Regularizar Débitos</a>
+          <a href="https://solucoes.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Solicitacao.asp?cnpj=${cnpjLimpo}"
+             target="_blank" class="btn-servico">&#128269; Consultar CNPJ</a>
+          <a href="https://mei.receita.economia.gov.br/alteracao/acesso"
+             target="_blank" class="btn-servico"
+             onclick="copiarCNPJ('${cnpjLimpo}')">&#9998; Alterar Dados</a>
+          <a href="https://mei.receita.economia.gov.br/baixa/login"
+             target="_blank" class="btn-servico"
+             onclick="copiarCNPJ('${cnpjLimpo}')">&#128683; Solicitar Baixa</a>
+        </div>
+      </div>
+    `;
+    container.style.display = 'block';
+  } else {
+    container.style.display = 'none';
+    container.innerHTML = '';
+  }
+}
+
+// ── Toggle visual dos botões de tipo ─────────────────────────────────
+function toggleBotao(cb) {
+  const btn = document.getElementById(`btn-tipo-${cb.value}`);
+  btn.classList.toggle('ativo', cb.checked);
+}
+
+// ── Copiar CNPJ ───────────────────────────────────────────────────────
+function copiarCNPJ(cnpj) {
+  navigator.clipboard.writeText(cnpj).then(() => {
+    const toast = document.createElement('div');
+    toast.className = 'toast-cnpj';
+    toast.textContent = '✅ CNPJ copiado! Cole no campo do portal (Ctrl+V)';
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }).catch(() => {
+    prompt('Copie o CNPJ e cole no portal:', cnpj);
+  });
+}
+
+// ── Validação antes do submit ─────────────────────────────────────────
+document.getElementById('form-rapido').addEventListener('submit', e => {
+  if (!hiddenId.value) {
+    e.preventDefault();
+    busca.style.borderColor = 'var(--cor-perigo)';
+    busca.focus();
+    return;
+  }
+  const marcados = document.querySelectorAll('input[name="servicos"]:checked');
+  if (marcados.length === 0) {
+    e.preventDefault();
+    alert('Selecione pelo menos um tipo de atendimento.');
+  }
+});
+</script>
+
+{% endblock %}

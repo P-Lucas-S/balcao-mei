@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}{{ titulo }}{% endblock %}
+
+{% block conteudo %}
+<div class="form-card">
+  <form method="POST">
+
+    {# Iteração por índice para alinhar campo ↔ label #}
+    {% for i in range(cfg.campos | length) %}
+    {% set campo = cfg.campos[i] %}
+    {% set label = cfg.labels[i] %}
+
+    <div class="form-group" style="margin-bottom: 18px;">
+      <label for="{{ campo }}">
+        {{ label }}
+        {% if campo == 'descricao' %}<span style="color:#dc3545;"> *</span>{% endif %}
+        {% if campo in ('data_inicio', 'data_fim') %}
+          <span class="opcional">(opcional)</span>
+        {% endif %}
+      </label>
+
+      {% if campo in ('data_inicio', 'data_fim') %}
+        <input type="date" id="{{ campo }}" name="{{ campo }}"
+               value="{{ form.get(campo, '') }}">
+      {% else %}
+        <input type="text" id="{{ campo }}" name="{{ campo }}"
+               value="{{ form.get(campo, '') }}"
+               {% if campo == 'descricao' %}required{% endif %}>
+      {% endif %}
+    </div>
+
+    {% endfor %}
+
+    {# Campos extras — Tipo de Solicitação #}
+    {% if chave == 'tipo-solicitacao' %}
+    <div class="form-group" style="margin-bottom:18px;">
+      <label for="validade">Validade <span class="opcional">(opcional)</span></label>
+      <input type="date" id="validade" name="validade" value="{{ form.get('validade', '') }}">
+      <small style="color:var(--texto-suave); font-size:0.78rem;">
+        Data até a qual este tipo de solicitação pode ser usado. Deixe em branco para sem validade.
+      </small>
+    </div>
+    {% endif %}
+
+    {# Campos extras — Serviço #}
+    {% if chave == 'servico' %}
+    <div class="form-group" style="margin-bottom:18px;">
+      <label for="link_portal">Link do Portal <span class="opcional">(opcional)</span></label>
+      <input type="url" id="link_portal" name="link_portal"
+             value="{{ form.get('link_portal', '') }}"
+             placeholder="https://…"
+             style="font-family:inherit;">
+      <small style="color:var(--texto-suave); font-size:0.78rem;">
+        URL de referência no portal da prefeitura ou sistema externo.
+      </small>
+    </div>
+    <div class="form-group" style="margin-bottom:18px;">
+      <label for="instrucao">Instrução ao Atendente <span class="opcional">(opcional)</span></label>
+      <textarea id="instrucao" name="instrucao" rows="3"
+                style="width:100%; padding:8px 10px; border:1px solid var(--borda);
+                       border-radius:var(--radius); font-family:inherit; font-size:0.9rem;
+                       resize:vertical; box-sizing:border-box; background:var(--bg-card);
+                       color:var(--texto-principal);">{{ form.get('instrucao', '') }}</textarea>
+      <small style="color:var(--texto-suave); font-size:0.78rem;">
+        Orientação interna exibida ao atendente ao registrar este tipo.
+      </small>
+    </div>
+    {% endif %}
+
+    {% if similar %}
+    <div style="background:#fffbeb; border:1px solid #f59e0b;
+                border-radius:8px; padding:14px 16px;
+                margin-bottom:16px;">
+      <p style="font-size:0.85rem; font-weight:700;
+                color:#92400e; margin:0 0 8px;">
+        ⚠️ Item similar encontrado: "{{ similar.descricao }}"
+      </p>
+      <label style="display:flex; align-items:center; gap:8px;
+                    font-size:0.85rem; cursor:pointer;">
+        <input type="checkbox" name="confirmar_similar" value="1">
+        Confirmo que este é um item diferente e quero salvar assim mesmo
+      </label>
+    </div>
+    {% endif %}
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">&#10003; Salvar</button>
+      <a href="{{ url_for('tabelas.lista', chave=chave) }}" class="btn btn-link">Cancelar</a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}

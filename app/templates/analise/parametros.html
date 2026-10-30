@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}Parâmetros — Análise{% endblock %}
+{% block titulo_pagina %}Parâmetros do Município{% endblock %}
+
+{% block conteudo %}
+<div class="page-actions">
+  <a href="{{ url_for('analise.index') }}" class="btn btn-back">← Voltar</a>
+</div>
+
+<div class="form-card">
+  <form method="POST">
+    <p class="section-label">Parâmetros do Município</p>
+    <p style="font-size:0.85rem; color:var(--texto-suave); margin-bottom:20px;">
+      Valores de referência atualizados periodicamente.
+      Atualize sempre que receber novos dados.
+    </p>
+
+    {% for chave, param in params.items() %}
+    <div class="form-group" style="margin-bottom:18px;">
+      <label for="{{ chave }}">
+        {{ param.descricao or chave }}
+      </label>
+      <input type="text" id="{{ chave }}" name="{{ chave }}"
+             value="{{ param.valor }}">
+      <p style="font-size:0.72rem; color:var(--texto-suave); margin:4px 0 0;">
+        Chave: <code>{{ chave }}</code>
+        · Atualizado em: {{ param.updated_at.strftime('%d/%m/%Y %H:%M') }}
+      </p>
+    </div>
+    {% endfor %}
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">✓ Salvar</button>
+      <a href="{{ url_for('analise.index') }}" class="btn btn-link">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

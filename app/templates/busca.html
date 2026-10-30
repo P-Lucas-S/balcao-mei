@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block titulo %}Busca — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Busca{% endblock %}
+
+{% block conteudo %}
+
+<div style="margin-bottom:24px;">
+  {% if q %}
+    <p style="font-size:1rem; color:var(--texto-secundario);">
+      {% if total > 0 %}
+        <strong style="color:var(--texto-principal);">{{ total }}</strong>
+        resultado(s) para "<strong style="color:var(--cor-primaria);">{{ q }}</strong>"
+      {% else %}
+        Nenhum resultado para "<strong>{{ q }}</strong>".
+      {% endif %}
+    </p>
+  {% else %}
+    <p style="color:var(--texto-suave);">Digite algo na barra de busca para pesquisar.</p>
+  {% endif %}
+</div>
+
+{% if pessoas %}
+<div style="margin-bottom:28px;">
+  <p class="section-label">&#128100; Cadastros ({{ pessoas|length }})</p>
+  <div class="card" style="overflow:hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th style="padding-left:20px;">Nome / Razão Social</th>
+          <th>CPF / CNPJ</th>
+          <th>Telefone</th>
+          <th>E-mail</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pessoas %}
+        <tr>
+          <td style="padding-left:20px; font-weight:600;">
+            <a href="{{ url_for('pessoas.detalhe', id=p.id) }}"
+               style="color:var(--cor-primaria); text-decoration:none;">
+              {{ p.nome_razao_social }}
+            </a>
+          </td>
+          <td style="color:var(--texto-secundario); font-size:0.85rem;">
+            {{ p.cpf or p.cnpj or '—' }}
+          </td>
+          <td style="color:var(--texto-secundario);">{{ p.telefone or '—' }}</td>
+          <td style="color:var(--texto-secundario);">{{ p.email or '—' }}</td>
+          <td>
+            <a href="{{ url_for('pessoas.detalhe', id=p.id) }}"
+               class="btn btn-outline" style="font-size:0.78rem; padding:4px 10px;">
+              Ver
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if atendimentos %}
+<div style="margin-bottom:28px;">
+  <p class="section-label">&#128222; Atendimentos ({{ atendimentos|length }})</p>
+  <div class="card" style="overflow:hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th style="padding-left:20px;">Data</th>
+          <th>Pessoa</th>
+          <th>Atendente</th>
+          <th>Tipos</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in atendimentos %}
+        <tr>
+          <td style="padding-left:20px; font-weight:600; color:var(--cor-primaria);">
+            {{ a.data_atendimento.strftime('%d/%m/%Y') }}
+          </td>
+          <td>{{ a.pessoa.nome_razao_social }}</td>
+          <td style="color:var(--texto-secundario);">{{ a.usuario.nome }}</td>
+          <td>
+            {% for at in a.tipos %}
+              <span class="tipo-tag">{{ at.servico.descricao }}</span>
+            {% endfor %}
+          </td>
+          <td>
+            <a href="{{ url_for('atendimentos.detalhe', id=a.id) }}"
+               class="btn btn-outline" style="font-size:0.78rem; padding:4px 10px;">
+              Ver
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if solicitacoes %}
+<div style="margin-bottom:28px;">
+  <p class="section-label">&#128203; Solicitações ({{ solicitacoes|length }})</p>
+  <div class="card" style="overflow:hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th style="padding-left:20px;">Data</th>
+          <th>Pessoa</th>
+          <th>Tipo</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in solicitacoes %}
+        {% set st = s.status.descricao | lower %}
+        <tr>
+          <td style="padding-left:20px; font-weight:600; color:var(--cor-primaria);">
+            {{ s.data_solicitacao.strftime('%d/%m/%Y') }}
+          </td>
+          <td>{{ s.pessoa.nome_razao_social }}</td>
+          <td style="color:var(--texto-secundario);">{{ s.tipo_solicitacao.descricao }}</td>
+          <td>
+            <span class="badge-status
+              {%- if 'pendente'  in st %} s-pendente
+              {%- elif 'an' in st %}      s-analise
+              {%- elif 'aprovado' in st %} s-aprovado
+              {%- elif 'recusado' in st %} s-recusado
+              {%- else %} s-default{%- endif %}">
+              {{ s.status.descricao }}
+            </span>
+          </td>
+          <td>
+            <a href="{{ url_for('solicitacoes.detalhe', id=s.id) }}"
+               class="btn btn-outline" style="font-size:0.78rem; padding:4px 10px;">
+              Ver
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if q and total == 0 %}
+<div class="card">
+  <div class="empty-state">
+    <div>&#128269;</div>
+    <p>Nenhum resultado encontrado para "<strong>{{ q }}</strong>".</p>
+    <p style="font-size:0.82rem; color:var(--texto-suave);">
+      Tente buscar pelo nome completo, CPF ou CNPJ.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

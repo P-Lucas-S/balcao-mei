@@ -1,0 +1,980 @@
+{% extends "base.html" %}
+{% block titulo %}Iniciar Atendimento — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Iniciar Atendimento{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/atendimentos.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="iniciar-wrapper">
+
+  <div class="iniciar-dica">
+    &#127919; <strong>Modo integrado</strong> — selecione a pessoa, clique no serviço
+    para abrir o portal (o tipo é marcado automaticamente) e finalize o atendimento.
+  </div>
+
+  <div class="card iniciar-card">
+    {% if retomar %}
+    {# Retomada: a tela é a mesma, mas o atendente precisa saber que está
+       continuando um registro que já existe, e não abrindo outro. #}
+    <div class="painel-em-aberto" style="margin-bottom:20px;">
+      <div class="painel-em-aberto-cabecalho">
+        <h2>
+          <span class="selo-em-aberto" aria-hidden="true">Em aberto</span>
+          Retomando o atendimento #{{ retomar.id }},
+          de {{ retomar.data_atendimento.strftime('%d/%m/%Y') }}
+        </h2>
+        <a href="{{ url_for('atendimentos.index', status='rascunho') }}"
+           class="btn btn-outline">Voltar à lista</a>
+      </div>
+      <p class="painel-em-aberto-nota">
+        Ao concluir, <strong>este mesmo atendimento</strong> é atualizado —
+        nenhum registro novo é criado.
+      </p>
+    </div>
+    {% endif %}
+
+    <form method="POST" id="form-iniciar">
+
+      {# ── 1. Busca de pessoa ── #}
+      <div class="form-group" style="margin-bottom:24px;">
+        <label style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+                      letter-spacing:1px; color:var(--cor-primaria);">
+          1. Selecione o Empreendedor
+        </label>
+        <div class="pessoa-search-wrapper" style="margin-top:8px;">
+          <input type="text" id="pessoa-busca"
+                 placeholder="Digite nome, CPF ou CNPJ…"
+                 autocomplete="off">
+          <span class="pessoa-clear" id="pessoa-clear">&#10005;</span>
+          <div class="pessoa-dropdown" id="pessoa-dropdown"></div>
+        </div>
+        <div class="pessoa-selecionada" id="pessoa-selecionada"></div>
+        <div id="alerta-pessoa" style="display:none; margin-top:8px;
+             background:#fef3c7; border:1px solid #f59e0b;
+             border-radius:6px; padding:8px 12px;
+             font-size:0.82rem; color:#92400e;"></div>
+
+      {# ── Mini-formulário de cadastro rápido ── #}
+      <div id="secao-cadastro" style="display:none; margin-top:12px;">
+        <div style="background:var(--cor-aviso-bg); border:1px solid var(--cor-aviso);
+                    border-left:4px solid var(--cor-aviso); border-radius:var(--radius);
+                    padding:16px 20px;">
+          <p style="font-size:0.8rem; font-weight:700; color:var(--cor-aviso);
+                    margin:0 0 12px; text-transform:uppercase; letter-spacing:0.5px;">
+            &#128100; Cadastrar novo empreendedor
+          </p>
+
+          <div style="display:flex; gap:8px; margin-bottom:16px;">
+            <button type="button" class="btn-tab-cadastro ativo" id="tab-pf"
+                    onclick="mudarTab('pf')">Pessoa Física (CPF)</button>
+            <button type="button" class="btn-tab-cadastro" id="tab-pj"
+                    onclick="mudarTab('pj')">MEI / PJ (CNPJ)</button>
+          </div>
+
+          <div id="campos-pf">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+              <div class="form-group" style="margin:0;">
+                <label>Nome completo <span style="color:var(--cor-perigo);">*</span></label>
+                <input type="text" id="cad-nome-pf" placeholder="Nome do empreendedor">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>CPF <span style="color:var(--cor-perigo);">*</span></label>
+                <input type="text" id="cad-cpf" placeholder="000.000.000-00" maxlength="14">
+              </div>
+            </div>
+            <div class="form-group" style="margin:0 0 12px;">
+              <label>Telefone <span class="opcional">(opcional)</span></label>
+              <input type="text" id="cad-tel-pf" placeholder="(00) 00000-0000" maxlength="15">
+            </div>
+          </div>
+
+          <div id="campos-pj" style="display:none;">
+            <div class="form-group" style="margin:0 0 12px;">
+              <label>CNPJ <span style="color:var(--cor-perigo);">*</span></label>
+              <div style="display:flex; gap:8px; align-items:flex-end;">
+                <input type="text" id="cad-cnpj" placeholder="00.000.000/0000-00"
+                       maxlength="18" style="flex:1;">
+                <button type="button" class="btn btn-outline" id="btn-buscar-cnpj"
+                        onclick="buscarCNPJ()"
+                        style="white-space:nowrap; height:42px;">
+                  &#128269; Buscar na Receita
+                </button>
+              </div>
+              <p id="status-cnpj" style="font-size:0.78rem; margin:4px 0 0;
+                                         color:var(--texto-suave);"></p>
+            </div>
+            <div class="form-group" style="margin:0 0 12px;">
+              <label>Nome / Razão Social <span style="color:var(--cor-perigo);">*</span></label>
+              <input type="text" id="cad-nome-pj" placeholder="Preenchido automaticamente…">
+            </div>
+            <div class="form-group" style="margin:0 0 12px;">
+              <label>Endereço <span class="opcional">(opcional)</span></label>
+              <input type="text" id="cad-end-pj" placeholder="Preenchido automaticamente…">
+            </div>
+          </div>
+
+          <div id="cad-erro" style="display:none; font-size:0.82rem; color:var(--cor-perigo);
+                                    margin-bottom:10px; font-weight:600;"></div>
+
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button type="button" class="btn btn-primary" onclick="salvarCadastroRapido()"
+                    id="btn-salvar-cad">
+              &#10003; Cadastrar e Selecionar
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="fecharCadastro()">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+
+        <input type="hidden" id="id_pessoa" name="id_pessoa" required>
+      </div>
+
+      {# ── 2. Serviços realizados — bloco único ──────────────────────────
+         Cada serviço é UM item com duas zonas independentes:
+           corpo  → marca/desmarca (label do checkbox). NUNCA abre portal.
+           ícone  → abre o portal em nova aba. NUNCA altera a marcação.
+         O checkbox é a fonte de verdade do POST e submete nativamente.
+
+         FILTRAGEM: o JS esconde os serviços não aplicáveis ao tipo efetivo
+         do atendimento, usando `data-aplicabilidade`. Item escondido tem o
+         checkbox DESMARCADO e DESABILITADO, então não vai no POST.
+         Se o JS falhar, nada é escondido e o servidor valida — o registro
+         nunca depende do JS para funcionar. #}
+      <div id="secao-servicos" style="display:none; margin-bottom:24px;">
+        <label style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+                      letter-spacing:1px; color:var(--cor-primaria); display:block;">
+          2. Serviços Realizados
+          <span style="color:var(--cor-perigo);"> *</span>
+        </label>
+        <p style="font-size:0.8rem; color:var(--texto-suave); margin:4px 0 12px;">
+          Clique no serviço para marcar. O ícone &#8599; abre o portal;
+          o &#9998; abre o formulário de solicitação em nova aba.
+        </p>
+
+        {# Id do rascunho, se o atendimento já foi salvo pelo ícone de
+           Solicitação. Finalizar ATUALIZA esse registro em vez de criar
+           outro — é o upsert que impede a duplicação. #}
+        <input type="hidden" name="atendimento_id" id="atendimento-rascunho"
+               value="{{ retomar.id if retomar else '' }}">
+
+        {# Tipo efetivo DO ATENDIMENTO — nasce do cadastro, pode mudar aqui #}
+        <input type="hidden" name="tipo_efetivo" id="tipo-efetivo"
+               value="{{ tipo_efetivo_inicial }}">
+
+        <div class="servicos-grid">
+          {% for s in todos_servicos %}
+          <div class="servico-item"
+               data-aplicabilidade="{{ s.aplicabilidade }}"
+               data-servico-id="{{ s.id }}"
+               {% if id_servico_abertura and s.id == id_servico_abertura %}data-converte-mei="1"{% endif %}
+               {% if id_servico_solicitacao and s.id == id_servico_solicitacao %}data-solicitacao="1"{% endif %}>
+            <input type="checkbox" name="servicos" value="{{ s.id }}"
+                   id="chk-{{ s.id }}" class="servico-check"
+                   {% if s.id in contexto_retomado %}checked{% endif %}
+                   onchange="aoMarcarServico(this)">
+            <label class="servico-corpo" for="chk-{{ s.id }}">{{ s.descricao }}</label>
+            {% if s.link_portal %}
+            <button type="button" class="servico-portal"
+                    data-url="{{ s.link_portal }}"
+                    onclick="abrirPortal(this)"
+                    title="Abrir portal de {{ s.descricao }}"
+                    aria-label="Abrir portal de {{ s.descricao }}">&#8599;</button>
+            {% elif id_servico_solicitacao and s.id == id_servico_solicitacao %}
+            {# Mesma zona do ícone, destino interno: salva o rascunho e abre o
+               formulário de solicitação em nova aba. Classe própria porque o
+               que ele faz é outra coisa — e porque `.servico-portal` significa
+               "abre portal externo" em CSS e em teste. #}
+            <button type="button" class="servico-solicitacao"
+                    onclick="abrirSolicitacao()"
+                    title="Preencher a solicitação em nova aba"
+                    aria-label="Preencher a solicitação em nova aba">&#9998;</button>
+            {% endif %}
+            {# Contexto por serviço: snapshot do tipo no momento da marcação e
+               se foi marcado fora da aplicabilidade (válvula de escape). #}
+            <input type="hidden" name="snap_{{ s.id }}" class="servico-snap"
+                   value="{{ contexto_retomado[s.id].snap if s.id in contexto_retomado else '' }}">
+            <input type="hidden" name="forcado_{{ s.id }}" class="servico-forcado"
+                   value="{{ contexto_retomado[s.id].forcado if s.id in contexto_retomado else '' }}">
+          </div>
+          {% endfor %}
+        </div>
+
+        {# ── Válvula de escape — SEMPRE visível ──────────────────────────
+           Revela os serviços fora da aplicabilidade, para cadastro com tipo
+           errado ou caso excepcional. Não altera o tipo efetivo: é só
+           exibição. Marcar um serviço revelado o registra como forçado. #}
+        <label class="valvula-escape">
+          <input type="checkbox" id="mostrar-todos" onchange="alternarMostrarTodos()">
+          <span>Mostrar todos os serviços</span>
+        </label>
+        {# Banner da conversão PF→MEI — permite desfazer se foi engano.
+           Vale só para ESTE atendimento; o cadastro não é alterado. #}
+        <div id="banner-conversao" class="banner-conversao" style="display:none;">
+          <span>&#10003; MEI aberto neste atendimento — serviços de MEI liberados.
+                O cadastro da pessoa não foi alterado.</span>
+          <button type="button" class="btn-desfazer-conversao"
+                  onclick="reverterConversaoMei()">Desfazer</button>
+        </div>
+        <p id="aviso-forcado" class="aviso-forcado" style="display:none;">
+          &#9888; Serviços fora do perfil deste atendimento serão registrados
+          como exceção.
+        </p>
+      </div>
+
+      {# ── 4. Canal — COMO o empreendedor chegou (um só) ── #}
+      <div class="form-group" style="margin-bottom:24px;">
+        <label for="id_canal"
+               style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+                      letter-spacing:1px; color:var(--cor-primaria);">
+          3. Canal de Atendimento
+        </label>
+        <p style="font-size:0.8rem; color:var(--texto-suave); margin:4px 0 10px;">
+          Como o empreendedor chegou até a Sala.
+        </p>
+        <select id="id_canal" name="id_canal" style="max-width:280px;">
+          {% for c in canais %}
+          <option value="{{ c.id }}"
+                  {{ 'selected' if c.id == (retomar.id_canal if retomar else canal_padrao) else '' }}>
+            {{ c.descricao }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {# ── Observação ── #}
+      <div class="form-group" style="margin-bottom:24px;">
+        <label>Observação <span class="opcional">(opcional)</span></label>
+        <input type="text" name="observacao"
+               value="{{ retomar.observacao or '' if retomar else '' }}"
+               placeholder="Ex: DAS jan/fev/mar 2025…">
+      </div>
+
+      <div class="btn-row" style="margin-top:0;">
+        <button type="submit" class="btn btn-primary"
+                style="padding:10px 28px; font-size:0.95rem;">
+          &#10003; {{ 'Concluir Atendimento' if retomar else 'Finalizar Atendimento' }}
+        </button>
+        <a href="{{ url_for('atendimentos.index') }}"
+           class="btn btn-secondary">Cancelar</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{# ── Aviso anti-fantasma ────────────────────────────────────────────────
+   "Solicitação" marcada sem nenhuma solicitação criada de fato. Avisa, mas
+   NUNCA bloqueia: as duas saídas concluem o atendimento de algum jeito. #}
+<div class="modal-confirmar-overlay" id="modal-fantasma" role="dialog"
+     aria-modal="true" aria-labelledby="modal-fantasma-msg">
+  <div class="modal-confirmar-box">
+    <div class="modal-confirmar-icone" aria-hidden="true">&#9888;</div>
+    <p class="modal-confirmar-msg" id="modal-fantasma-msg">
+      Você marcou <strong>Solicitação</strong> mas não preencheu nenhuma.
+    </p>
+    <div class="modal-confirmar-btns">
+      <button type="button" class="btn btn-secondary" id="fantasma-desmarcar">
+        Desmarcar e finalizar
+      </button>
+      <button type="button" class="btn btn-primary" id="fantasma-preencher">
+        Preencher agora
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Dados das pessoas ─────────────────────────────────────────────────
+const PESSOAS = [
+  {% for p in pessoas %}
+  { id: {{ p.id }},
+    nome: {{ p.nome_razao_social | tojson }},
+    doc:  {{ (p.cpf or p.cnpj or '') | tojson }},
+    cnpj: {{ (p.cnpj or '') | tojson }},
+    mei:  {{ (p.mei or false) | tojson }} }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+// Pré-selecionar pessoa via URL
+document.addEventListener('DOMContentLoaded', function() {
+  {% if pessoa_pre %}
+  const pre = {
+    id:   {{ pessoa_pre.id }},
+    nome: {{ pessoa_pre.nome_razao_social | tojson }},
+    doc:  {{ (pessoa_pre.cpf or pessoa_pre.cnpj or '') | tojson }},
+    cnpj: {{ (pessoa_pre.cnpj or '') | tojson }},
+    mei:  {{ (pessoa_pre.mei or false) | tojson }}
+  };
+  selecionarPessoa(pre);
+  {% endif %}
+});
+
+// ── Estado: CNPJ da pessoa selecionada ───────────────────────────────
+// Usado pelos links de portal que esperam o CNPJ na própria URL
+// (terminam em '='), como a Consulta Cadastral.
+let _cnpjAtual = '';
+
+// ── Busca de pessoa ───────────────────────────────────────────────────
+const busca       = document.getElementById('pessoa-busca');
+const hiddenId    = document.getElementById('id_pessoa');
+const dropdown    = document.getElementById('pessoa-dropdown');
+const selecionada = document.getElementById('pessoa-selecionada');
+const clearBtn    = document.getElementById('pessoa-clear');
+
+busca.addEventListener('input', function () {
+  const q = this.value.trim().toLowerCase();
+  clearBtn.classList.toggle('visivel', q.length > 0);
+  if (q.length < 1) { dropdown.classList.remove('aberto'); return; }
+
+  const qDigits = q.replace(/\D/g, '');
+  const matches = PESSOAS.filter(p => {
+    const docDigits = p.doc.replace(/\D/g, '');
+    return p.nome.toLowerCase().includes(q)
+      || p.doc.toLowerCase().includes(q)
+      || (qDigits.length >= 3 && docDigits.includes(qDigits));
+  }).slice(0, 8);
+
+  dropdown.innerHTML = matches.length === 0
+    ? `<div class="dropdown-item sem-resultado">
+         Nenhuma pessoa encontrada.
+         <button type="button" class="btn-cadastrar-novo"
+                 onmousedown="event.preventDefault(); abrirCadastro('${this.value}')">
+           + Cadastrar novo
+         </button>
+       </div>`
+    : matches.map(p =>
+        `<div class="dropdown-item" data-id="${p.id}"
+              data-nome="${p.nome}" data-doc="${p.doc}"
+              data-cnpj="${p.cnpj}" data-mei="${p.mei ? 1 : 0}">
+          ${p.nome}${p.doc ? `<span class="doc"> ${p.doc}</span>` : ''}
+        </div>`
+      ).join('');
+
+  dropdown.querySelectorAll('.dropdown-item[data-id]').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      hiddenId.value = el.dataset.id;
+      busca.value    = el.dataset.nome;
+      selecionada.textContent = el.dataset.doc
+        ? `${el.dataset.nome} — ${el.dataset.doc}` : el.dataset.nome;
+      selecionada.classList.add('visivel');
+      clearBtn.classList.add('visivel');
+      dropdown.classList.remove('aberto');
+      mostrarServicos({ cnpj: el.dataset.cnpj, mei: el.dataset.mei === '1' });
+      setTimeout(() => {
+        const pid = el.dataset.id;
+        if (pid) {
+          fetch(`{{ url_for('pessoas.index') }}${pid}/pendencias-rapido`)
+            .then(r => r.json())
+            .then(data => {
+              const alertaEl = document.getElementById('alerta-pessoa');
+              if (!alertaEl) return;
+              const avisos = [];
+              if (data.doc_incompleta) avisos.push('⚠️ Documentação incompleta');
+              if (data.solic_aberta) avisos.push(`📋 ${data.solic_aberta} solicitação(ões) em aberto`);
+              if (avisos.length > 0) {
+                alertaEl.textContent = avisos.join(' · ');
+                alertaEl.style.display = 'block';
+              } else {
+                alertaEl.style.display = 'none';
+              }
+            })
+            .catch(() => {});
+        }
+      }, 200);
+    });
+  });
+  dropdown.classList.add('aberto');
+});
+
+clearBtn.addEventListener('click', () => {
+  busca.value = ''; hiddenId.value = '';
+  selecionada.classList.remove('visivel');
+  clearBtn.classList.remove('visivel');
+  dropdown.classList.remove('aberto');
+  const alertaEl = document.getElementById('alerta-pessoa');
+  if (alertaEl) alertaEl.style.display = 'none';
+  ocultarServicos();
+  // Limpa todos os serviços marcados
+  document.querySelectorAll('input[name="servicos"]').forEach(chk => {
+    chk.checked = false;
+  });
+  busca.focus();
+});
+
+busca.addEventListener('blur', () =>
+  setTimeout(() => dropdown.classList.remove('aberto'), 150));
+
+// ── Tipo efetivo do atendimento e filtragem de serviços ──────────────
+// O tipo efetivo é um estado DO ATENDIMENTO: nasce do cadastro da pessoa,
+// mas pode mudar aqui (conversão PF→MEI) sem tocar no cadastro.
+//
+// Regra:  exibe o serviço se  aplicabilidade === tipoEfetivo  ou  'todos'.
+// Sempre por aplicabilidade — nunca por id de serviço.
+let _tipoEfetivo  = 'nao_mei';
+let _mostrarTodos = false;
+
+function tipoEfetivoDe(p) {
+  return (p && (p.mei === true || p.mei === 1 || p.mei === '1' || p.cnpj))
+    ? 'mei' : 'nao_mei';
+}
+
+function setTipoEfetivo(tipo) {
+  _tipoEfetivo = tipo;
+  document.getElementById('tipo-efetivo').value = tipo;
+  aplicarFiltro();
+}
+
+function servicoAplicavel(item) {
+  const a = item.dataset.aplicabilidade;
+  return a === _tipoEfetivo || a === 'todos';
+}
+
+// Esconder não é só visual: o checkbox escondido é desmarcado e DESABILITADO,
+// então não entra no POST. Revelar pela válvula reabilita.
+function aplicarFiltro() {
+  document.querySelectorAll('.servico-item').forEach(item => {
+    const aplicavel = servicoAplicavel(item);
+    const visivel   = aplicavel || _mostrarTodos;
+    const chk       = item.querySelector('.servico-check');
+
+    item.style.display = visivel ? '' : 'none';
+    item.classList.toggle('servico-fora-do-perfil', !aplicavel && _mostrarTodos);
+
+    if (!visivel && chk.checked) {
+      chk.checked = false;
+      limparContexto(item);
+    }
+    chk.disabled = !visivel;
+  });
+  atualizarAvisoForcado();
+}
+
+function alternarMostrarTodos() {
+  _mostrarTodos = document.getElementById('mostrar-todos').checked;
+  aplicarFiltro();
+}
+
+// ── Contexto por serviço: snapshot do tipo e marca de forçado ────────
+function limparContexto(item) {
+  item.querySelector('.servico-snap').value    = '';
+  item.querySelector('.servico-forcado').value = '';
+}
+
+function atualizarAvisoForcado() {
+  const algum = [...document.querySelectorAll('.servico-item')].some(
+    i => i.querySelector('.servico-check').checked && !servicoAplicavel(i));
+  document.getElementById('aviso-forcado').style.display = algum ? 'block' : 'none';
+}
+
+function aoMarcarServico(chk) {
+  const item = chk.closest('.servico-item');
+
+  // Qualquer mudança na seleção rearma o aviso anti-fantasma
+  _finalizando = false;
+
+  if (chk.checked) {
+    // Snapshot do tipo VIGENTE agora — o histórico não muda depois
+    item.querySelector('.servico-snap').value = _tipoEfetivo;
+    item.querySelector('.servico-forcado').value = servicoAplicavel(item) ? '' : '1';
+  } else {
+    limparContexto(item);
+  }
+
+  atualizarAvisoForcado();
+
+  // Conversão PF→MEI ancorada no serviço de Abertura de MEI
+  if (item.dataset.converteMei === '1') {
+    chk.checked ? perguntarConversaoMei() : desfazerConversaoMei();
+  }
+}
+
+// ── Conversão PF → MEI durante o atendimento ─────────────────────────
+// Muda APENAS o tipo efetivo deste atendimento. Não altera o cadastro da
+// pessoa, não captura CNPJ, não cria pendência — isso é a próxima fase.
+function perguntarConversaoMei() {
+  if (_tipoEfetivo === 'mei') return;
+  const ok = confirm(
+    'A abertura do MEI foi concluída agora?' + '\n\n' +
+    'Se sim, os serviços de MEI passam a aparecer neste atendimento.' + '\n' +
+    'O cadastro da pessoa não é alterado.'
+  );
+  if (ok) {
+    setTipoEfetivo('mei');
+    mostrarBannerConversao(true);
+  }
+}
+
+function desfazerConversaoMei() {
+  // Desmarcar Abertura de MEI desfaz a conversão deste atendimento
+  if (_tipoEfetivo !== 'mei') return;
+  setTipoEfetivo(tipoEfetivoDe(_pessoaAtual));
+  mostrarBannerConversao(false);
+}
+
+function mostrarBannerConversao(ativo) {
+  const el = document.getElementById('banner-conversao');
+  if (el) el.style.display = ativo ? 'flex' : 'none';
+}
+
+function reverterConversaoMei() {
+  // Botão "desfazer" do banner: desmarca o serviço, o que dispara o desfazer
+  const item = document.querySelector('.servico-item[data-converte-mei="1"]');
+  if (item) {
+    const chk = item.querySelector('.servico-check');
+    chk.checked = false;
+    aoMarcarServico(chk);
+  }
+}
+
+// ── Exibir a seção de serviços ────────────────────────────────────────
+// A seção só faz sentido depois que a pessoa está selecionada. O que ela
+// mostra depende do tipo efetivo — ver aplicarFiltro().
+let _pessoaAtual = null;
+
+// Retomada: o servidor já mandou o estado pronto (serviços marcados, o
+// contexto de cada um e o tipo efetivo reconstruído do snapshot). A primeira
+// carga não pode sobrescrever nada disso — as seguintes, sim.
+let _retomando        = {{ 'true' if retomar else 'false' }};
+const RETOMA_FORCADO  = {{ 'true' if contexto_retomado.values() | selectattr('forcado') | list else 'false' }};
+
+function mostrarServicos(pessoa) {
+  _finalizando = false;
+  _pessoaAtual = pessoa;
+  _cnpjAtual   = ((pessoa && pessoa.cnpj) || '').replace(/\D/g, '');
+
+  if (_retomando) {
+    _retomando    = false;
+    // Se algum serviço foi registrado fora do perfil, a válvula precisa
+    // estar aberta — senão aplicarFiltro() desmarcaria justamente ele.
+    _mostrarTodos = RETOMA_FORCADO;
+    document.getElementById('mostrar-todos').checked = _mostrarTodos;
+    setTipoEfetivo(document.getElementById('tipo-efetivo').value);
+    mostrarBannerConversao(_tipoEfetivo === 'mei' && tipoEfetivoDe(pessoa) !== 'mei');
+  } else {
+    // Trocar de pessoa não herda o rascunho da anterior: aquele atendimento
+    // é dela, e pode já ter uma solicitação vinculada.
+    document.getElementById('atendimento-rascunho').value = '';
+    _mostrarTodos = false;
+    document.getElementById('mostrar-todos').checked = false;
+    mostrarBannerConversao(false);
+    setTipoEfetivo(tipoEfetivoDe(pessoa));
+  }
+
+  document.getElementById('secao-servicos').style.display = 'block';
+}
+
+function ocultarServicos() {
+  _pessoaAtual = null;
+  _cnpjAtual   = '';
+  mostrarBannerConversao(false);
+  document.getElementById('secao-servicos').style.display = 'none';
+}
+
+// ── Zona do ícone: abre o portal, sem tocar na marcação ───────────────
+// Fica FORA do <label>, então o clique aqui não alterna o checkbox.
+function abrirPortal(btn) {
+  const base = btn.dataset.url || '';
+  if (!base) return;
+  // Links terminados em '=' recebem o CNPJ na própria URL.
+  const url = base.endsWith('=') ? `${base}${_cnpjAtual}` : base;
+  window.open(url, '_blank');
+  if (_cnpjAtual) copiarCNPJ(_cnpjAtual);
+}
+
+// ── Copiar CNPJ ───────────────────────────────────────────────────────
+function copiarCNPJ(cnpj) {
+  navigator.clipboard.writeText(cnpj).then(() => {
+    const toast = document.createElement('div');
+    toast.className = 'toast-cnpj';
+    toast.textContent = '✅ CNPJ copiado! Cole no campo do portal (Ctrl+V)';
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }).catch(() => {
+    prompt('Copie o CNPJ e cole no portal:', cnpj);
+  });
+}
+
+// ── Cadastro rápido ───────────────────────────────────────────────────
+let _tabAtual = 'pf';
+
+function mudarTab(tab) {
+  _tabAtual = tab;
+  document.getElementById('campos-pf').style.display = tab === 'pf' ? 'block' : 'none';
+  document.getElementById('campos-pj').style.display = tab === 'pj' ? 'block' : 'none';
+  document.getElementById('tab-pf').classList.toggle('ativo', tab === 'pf');
+  document.getElementById('tab-pj').classList.toggle('ativo', tab === 'pj');
+  document.getElementById('cad-erro').style.display = 'none';
+}
+
+function abrirCadastro(textoDigitado) {
+  dropdown.classList.remove('aberto');
+  const secao = document.getElementById('secao-cadastro');
+  secao.style.display = 'block';
+
+  const digitos = textoDigitado.replace(/\D/g, '');
+  if (digitos.length >= 14) {
+    mudarTab('pj');
+    document.getElementById('cad-cnpj').value = textoDigitado;
+    aplicarMascaraCNPJ(document.getElementById('cad-cnpj'));
+  } else if (digitos.length >= 11) {
+    mudarTab('pf');
+    document.getElementById('cad-cpf').value = textoDigitado;
+    aplicarMascaraCPF(document.getElementById('cad-cpf'));
+  } else {
+    mudarTab('pf');
+    document.getElementById('cad-nome-pf').value = textoDigitado;
+  }
+
+  secao.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function fecharCadastro() {
+  document.getElementById('secao-cadastro').style.display = 'none';
+  document.getElementById('cad-erro').style.display = 'none';
+  document.getElementById('cad-nome-pf').value = '';
+  document.getElementById('cad-cpf').value = '';
+  document.getElementById('cad-tel-pf').value = '';
+  document.getElementById('cad-cnpj').value = '';
+  document.getElementById('cad-nome-pj').value = '';
+  document.getElementById('cad-end-pj').value = '';
+  document.getElementById('status-cnpj').textContent = '';
+}
+
+async function buscarCNPJ() {
+  const cnpjRaw = document.getElementById('cad-cnpj').value;
+  const cnpj    = cnpjRaw.replace(/\D/g, '');
+  const status  = document.getElementById('status-cnpj');
+
+  if (cnpj.length !== 14) {
+    status.textContent = 'Digite o CNPJ completo (14 dígitos).';
+    status.style.color = 'var(--cor-perigo)';
+    return;
+  }
+
+  status.textContent = '🔍 Consultando Receita Federal…';
+  status.style.color = 'var(--texto-suave)';
+  document.getElementById('btn-buscar-cnpj').disabled = true;
+
+  try {
+    const r    = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`);
+    const data = await r.json();
+
+    if (data.razao_social) {
+      document.getElementById('cad-nome-pj').value = data.razao_social;
+      const end = data.estabelecimento;
+      if (end) {
+        const partes = [
+          end.logradouro, end.numero, end.bairro,
+          end.cidade?.nome, end.estado?.sigla
+        ].filter(Boolean);
+        document.getElementById('cad-end-pj').value = partes.join(', ');
+      }
+      status.textContent = '✅ Dados preenchidos automaticamente.';
+      status.style.color = 'var(--cor-sucesso)';
+    } else {
+      status.textContent = 'CNPJ não encontrado na Receita Federal.';
+      status.style.color = 'var(--cor-perigo)';
+    }
+  } catch {
+    status.textContent = 'Erro ao consultar. Preencha manualmente.';
+    status.style.color = 'var(--cor-perigo)';
+  } finally {
+    document.getElementById('btn-buscar-cnpj').disabled = false;
+  }
+}
+
+async function salvarCadastroRapido() {
+  const erro = document.getElementById('cad-erro');
+  erro.style.display = 'none';
+
+  let payload = {};
+
+  if (_tabAtual === 'pf') {
+    const nome = document.getElementById('cad-nome-pf').value.trim();
+    const cpf  = document.getElementById('cad-cpf').value.trim();
+    const tel  = document.getElementById('cad-tel-pf').value.trim();
+    if (!nome) { mostrarErroCad('Nome é obrigatório.'); return; }
+    payload = { nome, cpf, telefone: tel };
+  } else {
+    const nome = document.getElementById('cad-nome-pj').value.trim();
+    const cnpj = document.getElementById('cad-cnpj').value.trim();
+    const end  = document.getElementById('cad-end-pj').value.trim();
+    if (!cnpj) { mostrarErroCad('CNPJ é obrigatório.'); return; }
+    if (!nome) { mostrarErroCad('Consulte o CNPJ ou preencha o nome.'); return; }
+    payload = { nome, cnpj, endereco: end };
+  }
+
+  const btn = document.getElementById('btn-salvar-cad');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  try {
+    const r    = await fetch('{{ url_for("atendimentos.cadastro_rapido") }}', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    const data = await r.json();
+
+    if (r.status === 409) {
+      mostrarErroCad(data.erro + ' — Deseja selecioná-la?', data.pessoa);
+      return;
+    }
+
+    if (!r.ok) {
+      mostrarErroCad(data.erro || 'Erro ao cadastrar.');
+      return;
+    }
+
+    const p = data.pessoa;
+    PESSOAS.push(p);
+    selecionarPessoa(p);
+    fecharCadastro();
+
+  } catch {
+    mostrarErroCad('Erro de conexão. Tente novamente.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✓ Cadastrar e Selecionar';
+  }
+}
+
+function mostrarErroCad(msg, pessoa) {
+  const div = document.getElementById('cad-erro');
+  div.textContent = msg;
+  if (pessoa) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-outline';
+    btn.style.cssText = 'margin-left:8px; font-size:0.78rem; padding:3px 10px;';
+    btn.textContent = 'Selecionar existente';
+    btn.onclick = () => { selecionarPessoa(pessoa); fecharCadastro(); };
+    div.appendChild(btn);
+  }
+  div.style.display = 'block';
+}
+
+function selecionarPessoa(p) {
+  // Limpa serviços marcados da pessoa anterior
+  document.querySelectorAll('input[name="servicos"]').forEach(chk => {
+    chk.checked = false;
+  });
+
+  hiddenId.value = p.id;
+  busca.value    = p.nome;
+  selecionada.textContent = p.doc
+    ? `${p.nome} — ${p.doc}` : p.nome;
+  selecionada.classList.add('visivel');
+  clearBtn.classList.add('visivel');
+  mostrarServicos(p);
+
+  // Verificar pendências da pessoa
+  fetch(`{{ url_for('pessoas.index') }}${p.id}/pendencias-rapido`)
+    .then(r => r.json())
+    .then(data => {
+      const alertaEl = document.getElementById('alerta-pessoa');
+      if (!alertaEl) return;
+      const avisos = [];
+      if (data.doc_incompleta) avisos.push('⚠️ Documentação incompleta');
+      if (data.solic_aberta) avisos.push(`📋 ${data.solic_aberta} solicitação(ões) em aberto`);
+      if (avisos.length > 0) {
+        alertaEl.textContent = avisos.join(' · ');
+        alertaEl.style.display = 'block';
+      } else {
+        alertaEl.style.display = 'none';
+      }
+    })
+    .catch(() => {});
+}
+
+// ── Máscaras ──────────────────────────────────────────────────────────
+function aplicarMascaraCPF(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+  el.value = v;
+}
+
+function aplicarMascaraCNPJ(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 14);
+  if (v.length > 12) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
+  else if (v.length > 8) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4');
+  else if (v.length > 5) v = v.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3');
+  else if (v.length > 2) v = v.replace(/(\d{2})(\d{1,3})/, '$1.$2');
+  el.value = v;
+}
+
+document.getElementById('cad-cpf').addEventListener('input', function() { aplicarMascaraCPF(this); });
+document.getElementById('cad-cnpj').addEventListener('input', function() { aplicarMascaraCNPJ(this); });
+document.getElementById('cad-tel-pf').addEventListener('input', function() {
+  let v = this.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 6) v = v.replace(/(\d{2})(\d{5})(\d{1,4})/, '($1) $2-$3');
+  else if (v.length > 2) v = v.replace(/(\d{2})(\d{1,5})/, '($1) $2');
+  this.value = v;
+});
+
+// ── Serviço "Solicitação": rascunho + formulário em nova aba ──────────
+// O ícone deste serviço não abre portal externo. Ele SALVA o atendimento
+// como rascunho (upsert — mesmo caminho de persistência que o Finalizar
+// usa depois) e abre o formulário já vinculado ao atendimento e à pessoa.
+// Por isso rascunho + finalizar resulta em UM atendimento, não dois.
+let _finalizando = false;   // já passou pelo aviso anti-fantasma
+
+function itemSolicitacao() {
+  return document.querySelector('.servico-item[data-solicitacao="1"]');
+}
+
+function coletarEstado() {
+  const servicos = [];
+  document.querySelectorAll('.servico-item').forEach(item => {
+    const chk = item.querySelector('.servico-check');
+    if (!chk.checked || chk.disabled) return;
+    servicos.push({
+      id:      parseInt(chk.value, 10),
+      snap:    item.querySelector('.servico-snap').value,
+      forcado: item.querySelector('.servico-forcado').value
+    });
+  });
+  const obs = document.querySelector('input[name="observacao"]');
+  return {
+    atendimento_id: parseInt(document.getElementById('atendimento-rascunho').value, 10) || null,
+    id_pessoa:      parseInt(hiddenId.value, 10) || null,
+    id_canal:       parseInt(document.getElementById('id_canal').value, 10) || null,
+    tipo_efetivo:   document.getElementById('tipo-efetivo').value,
+    observacao:     obs ? obs.value : '',
+    servicos:       servicos
+  };
+}
+
+function abrirSolicitacao() {
+  if (!hiddenId.value) {
+    alert('Selecione a pessoa antes de abrir a solicitação.');
+    return;
+  }
+
+  // Pedir o formulário É registrar o serviço — marca se ainda não estiver.
+  const item = itemSolicitacao();
+  if (item) {
+    const chk = item.querySelector('.servico-check');
+    if (!chk.checked) { chk.checked = true; aoMarcarServico(chk); }
+  }
+
+  // A aba precisa abrir NO CLIQUE, senão o bloqueador de pop-up a mata.
+  // A URL chega depois, quando o rascunho responder.
+  const aba = window.open('', '_blank');
+
+  fetch('{{ url_for("atendimentos.rascunho") }}', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(coletarEstado())
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (!d || !d.atendimento_id) throw new Error((d && d.erro) || 'falhou');
+      document.getElementById('atendimento-rascunho').value = d.atendimento_id;
+      if (aba) aba.location = d.url_solicitacao;
+      else window.open(d.url_solicitacao, '_blank');
+    })
+    .catch(() => {
+      if (aba) aba.close();
+      alert('Não foi possível salvar o atendimento para vincular a solicitação. Tente de novo.');
+    });
+}
+
+// ── Aviso anti-fantasma ──────────────────────────────────────────────
+// A pergunta vai ao BANCO, não a uma variável desta aba: o formulário é
+// preenchido em outra aba, que pode ter sido fechada ou recarregada.
+function temSolicitacaoCriada() {
+  const id = document.getElementById('atendimento-rascunho').value;
+  if (!id) return Promise.resolve(false);      // sem rascunho, nada foi criado
+  return fetch('{{ url_for("atendimentos.index") }}' + id + '/tem-solicitacao')
+    .then(r => r.json())
+    .then(d => !!(d && d.tem))
+    .catch(() => true);   // na dúvida, NÃO atrapalha a finalização
+}
+
+function abrirModalFantasma() {
+  const ov = document.getElementById('modal-fantasma');
+  ov.style.display = 'flex';
+  document.getElementById('fantasma-preencher').focus();
+}
+
+function fecharModalFantasma() {
+  document.getElementById('modal-fantasma').style.display = 'none';
+}
+
+function submeterFinalizacao() {
+  _finalizando = true;
+  const form = document.getElementById('form-iniciar');
+  if (form.requestSubmit) form.requestSubmit();
+  else form.submit();
+}
+
+document.getElementById('fantasma-preencher').addEventListener('click', () => {
+  fecharModalFantasma();
+  abrirSolicitacao();          // mesma ação do ícone
+});
+
+document.getElementById('fantasma-desmarcar').addEventListener('click', () => {
+  const item = itemSolicitacao();
+  if (item) {
+    const chk = item.querySelector('.servico-check');
+    chk.checked = false;
+    aoMarcarServico(chk);      // limpa o contexto do serviço
+  }
+  fecharModalFantasma();
+  submeterFinalizacao();
+});
+
+document.getElementById('modal-fantasma').addEventListener('click', e => {
+  if (e.target.id === 'modal-fantasma') fecharModalFantasma();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape'
+      && document.getElementById('modal-fantasma').style.display === 'flex') {
+    fecharModalFantasma();
+  }
+});
+
+// ── Validação antes do submit ─────────────────────────────────────────
+document.getElementById('form-iniciar').addEventListener('submit', e => {
+  if (!hiddenId.value) {
+    e.preventDefault();
+    busca.style.borderColor = 'var(--cor-perigo)';
+    busca.focus();
+    return;
+  }
+  const marcados = document.querySelectorAll('input[name="servicos"]:checked');
+  if (marcados.length === 0) {
+    e.preventDefault();
+    alert('Selecione pelo menos um serviço.');
+    return;
+  }
+
+  if (_finalizando) return;              // já respondeu ao aviso
+  const item = itemSolicitacao();
+  if (!item || !item.querySelector('.servico-check').checked) return;
+
+  // Serviço "Solicitação" marcado: confere se alguma foi mesmo criada.
+  // A checagem é assíncrona, então o submit espera — mas só para avisar.
+  e.preventDefault();
+  temSolicitacaoCriada().then(tem => {
+    if (tem) submeterFinalizacao();
+    else abrirModalFantasma();
+  });
+});
+</script>
+
+{% endblock %}

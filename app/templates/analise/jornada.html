@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block titulo %}Jornada — Análise{% endblock %}
+{% block titulo_pagina %}Análise de Empreendedores{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<style>
+.analise-nav-wrapper { position: relative; margin-bottom: 24px; }
+.analise-nav-wrapper::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 2px;
+  width: 40px;
+  background: linear-gradient(to right, transparent, var(--bg-pagina));
+  pointer-events: none;
+}
+.analise-nav {
+  display: flex; gap: 4px;
+  border-bottom: 2px solid var(--borda); padding-bottom: 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.analise-nav::-webkit-scrollbar { display: none; }
+.analise-nav a { white-space: nowrap; }
+
+.ranking-list { display: flex; flex-direction: column; gap: 8px; }
+.ranking-card { background: var(--bg-card); border: 1px solid var(--borda); border-radius: var(--radius); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.ranking-l1 { display: flex; align-items: center; gap: 8px; }
+.ranking-pos { width: 20px; height: 20px; border-radius: 50%; background: var(--bg-pagina); color: var(--texto-suave); font-size: 0.68rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ranking-nome { font-size: 0.88rem; font-weight: 600; color: var(--texto-principal); word-break: break-word; line-height: 1.3; }
+.ranking-l2 { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; }
+.ranking-badge { padding: 1px 8px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.ranking-badge-roxo { background: #dff2ef; color: var(--cor-primaria); }
+.ranking-sep { color: var(--texto-suave); }
+.ranking-info { color: var(--texto-suave); font-size: 0.72rem; }
+.ranking-l3 { display: flex; justify-content: flex-end; }
+.ranking-link { font-size: 0.75rem; font-weight: 700; color: var(--cor-primaria); text-decoration: none; text-transform: uppercase; letter-spacing: 0.03rem; }
+.ranking-link:hover { text-decoration: underline; }
+
+@media (max-width: 768px) {
+  .analise-nav { gap: 2px; }
+  .analise-nav a { padding: 6px 12px !important; font-size: 0.78rem !important; }
+  .jornada-kpis { grid-template-columns: 1fr 1fr !important; }
+  .jornada-freq-row { flex-direction: row !important; align-items: center; gap: 8px; }
+  .jornada-freq-row span:first-child { width: 70px !important; font-size: 0.75rem !important; }
+}
+</style>
+{% endblock %}
+
+{% block conteudo %}
+
+{# ── Navegação por abas ── #}
+<div class="analise-nav-wrapper">
+<div class="analise-nav">
+  <a href="{{ url_for('analise.index',
+             data_inicio=data_inicio.isoformat(),
+             data_fim=data_fim.isoformat()) }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128202; Painel Executivo
+  </a>
+  <a href="{{ url_for('analise.jornada',
+             data_inicio=data_inicio.isoformat(),
+             data_fim=data_fim.isoformat()) }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:var(--cor-primaria); color:white;
+            border:2px solid var(--cor-primaria); border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#129517; Jornada
+  </a>
+  <a href="{{ url_for('analise.demanda',
+             data_inicio=data_inicio.isoformat(),
+             data_fim=data_fim.isoformat()) }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128200; Demanda
+  </a>
+  <a href="{{ url_for('analise.perfil') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#128101; Perfil
+  </a>
+  <a href="{{ url_for('analise.potencial') }}"
+     style="padding:8px 18px; font-size:0.85rem; font-weight:600;
+            text-decoration:none; border-radius:6px 6px 0 0;
+            background:transparent; color:var(--texto-suave);
+            border:2px solid transparent; border-bottom:none;
+            margin-bottom:-2px; white-space:nowrap;">
+    &#127919; Potencial e Alertas
+  </a>
+</div>
+</div>
+
+{# ── Toolbar: exportações ── #}
+<div class="toolbar" style="margin-bottom:8px;">
+  <div style="margin-left:auto; display:flex; gap:6px;">
+    <a href="{{ url_for('analise.exportar_xlsx', aba='jornada',
+               data_inicio=data_inicio.isoformat(),
+               data_fim=data_fim.isoformat()) }}"
+       class="btn btn-outline" style="font-size:0.78rem; padding:5px 10px;">
+      &#128202; Excel
+    </a>
+    <a href="{{ url_for('analise.exportar_pdf', aba='jornada',
+               data_inicio=data_inicio.isoformat(),
+               data_fim=data_fim.isoformat()) }}"
+       class="btn btn-outline" style="font-size:0.78rem; padding:5px 10px;">
+      &#128196; PDF
+    </a>
+  </div>
+</div>
+
+{# ── Filtros de período ── #}
+<form method="GET" style="margin-bottom:16px;">
+  <div class="filtros-barra">
+    <div class="filtro-campo filtro-data">
+      <label>De</label>
+      <input type="date" name="data_inicio" value="{{ data_inicio.isoformat() }}">
+    </div>
+    <div class="filtro-campo filtro-data">
+      <label>Até</label>
+      <input type="date" name="data_fim" value="{{ data_fim.isoformat() }}">
+    </div>
+    <div class="filtro-acoes">
+      <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+      <a href="{{ url_for('analise.jornada',
+                 data_inicio=hoje.replace(day=1).isoformat(),
+                 data_fim=hoje.isoformat()) }}"
+         class="btn btn-secondary">Este mês</a>
+      <a href="{{ url_for('analise.jornada',
+                 data_inicio=mes_ant_inicio.isoformat(),
+                 data_fim=mes_ant_fim.isoformat()) }}"
+         class="btn btn-secondary">Mês anterior</a>
+    </div>
+  </div>
+</form>
+
+{# ── Seção 1 — KPIs de Jornada ── #}
+<div class="jornada-kpis" style="display:grid; grid-template-columns:repeat(4,1fr);
+     gap:16px; margin-bottom:24px;">
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Só Vieram Uma Vez
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_j.pct_uma_vez }}%
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_j.so_uma_vez }} de {{ kpis_j.total_unicos }} únicos
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Taxa de Retorno
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-teal);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_j.pct_retorno }}%
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_j.com_retorno }} voltaram 2+ vezes
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Média de Atend./Pessoa
+    </p>
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ kpis_j.media_atend }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      {{ kpis_j.total_atend }} atend. / {{ kpis_j.total_unicos }} únicos
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Tempo até Retorno
+    </p>
+    {% if tempo_medio %}
+    <p style="font-size:2.2rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0 0 6px;">
+      {{ tempo_medio }}
+    </p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:0;">
+      dias (méd. entre 1ª e 2ª visita)
+    </p>
+    {% else %}
+    <p style="font-size:1.1rem; font-weight:700; color:var(--texto-suave); margin:0;">—</p>
+    <p style="font-size:0.75rem; color:var(--texto-suave); margin:4px 0 0;">
+      Dados insuficientes
+    </p>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Seção 2 — Funil de Conversão ── #}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#128071; Funil de Conversão</span>
+  </div>
+  <div class="secao-corpo">
+    <div style="display:flex; flex-direction:column; gap:12px; max-width:640px;">
+      {% for etapa in funil %}
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline;
+                    font-size:0.85rem; margin-bottom:6px;">
+          <span style="font-weight:600; color:var(--texto-principal);">{{ etapa.label }}</span>
+          <span style="color:var(--cor-primaria); font-weight:700; white-space:nowrap; margin-left:8px;">
+            {{ etapa.valor }}
+            <small style="color:var(--texto-suave); font-weight:500;">&nbsp;({{ etapa.pct }}%)</small>
+          </span>
+        </div>
+        <div style="height:24px; border-radius:4px; background:var(--borda); overflow:hidden;">
+          <div style="height:100%; border-radius:4px;
+                      background:{% if loop.index == 1 %}var(--cor-primaria)
+                                 {% elif loop.index == 2 %}var(--cor-acento)
+                                 {% elif loop.index == 3 %}var(--cor-teal)
+                                 {% else %}var(--cor-sucesso){% endif %};
+                      width:{{ etapa.pct }}%;
+                      transition:width 0.4s ease;">
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% set f = funil %}
+    {% if f|length == 4 and f[0].valor > 0 %}
+    <p style="font-size:0.82rem; color:var(--texto-secundario); margin:16px 0 0;
+              background:var(--bg-pagina); border-radius:var(--radius);
+              padding:10px 14px; border-left:3px solid var(--cor-primaria);">
+      De cada 100 empreendedores cadastrados,
+      <strong>{{ f[1].pct }}</strong> foram atendidos no período,
+      <strong>{{ f[2].pct }}</strong> fizeram uma solicitação formal
+      e <strong>{{ f[3].pct }}</strong> tiveram aprovação.
+    </p>
+    {% endif %}
+
+    <p style="font-size:0.72rem; color:var(--texto-suave); margin:10px 0 0; font-style:italic;">
+      Cadastrados = total histórico. Atendidos, Com Solicitação e Aprovados = no período filtrado.
+    </p>
+  </div>
+</div>
+
+{# ── Seção 3 — Frequência de Visitas ── #}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#128202; Distribuição por Frequência de Visitas</span>
+  </div>
+  <div class="secao-corpo">
+    {% if frequencia and kpis_j.total_unicos > 0 %}
+    <div style="display:flex; flex-direction:column; gap:10px; max-width:520px;">
+      {% for faixa in frequencia %}
+      <div class="jornada-freq-row" style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:0.82rem; font-weight:600; color:var(--texto-principal);
+                     width:90px; flex-shrink:0;">{{ faixa.label }}</span>
+        <div style="flex:1; height:20px; border-radius:4px; background:var(--borda); overflow:hidden;">
+          <div style="height:100%; border-radius:4px; background:var(--cor-acento);
+                      width:{{ faixa.pct }}%; transition:width 0.3s ease;"></div>
+        </div>
+        <span style="font-size:0.8rem; color:var(--texto-suave); white-space:nowrap; width:80px; text-align:right;">
+          {{ faixa.total }} <small>({{ faixa.pct }}%)</small>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    <p style="font-size:0.72rem; color:var(--texto-suave); margin:14px 0 0; font-style:italic;">
+      Contagem de atendimentos únicos por pessoa no período filtrado.
+    </p>
+    {% else %}
+    <p style="color:var(--texto-suave); font-size:0.88rem;">Sem atendimentos no período.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Seção 4 — Top 10 Mais Atendidos ── #}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#127942; Top 10 Empreendedores Mais Atendidos</span>
+    <span style="font-size:0.72rem; color:var(--texto-suave);">no período</span>
+  </div>
+  <div class="secao-corpo">
+    {% if top10 %}
+    <div class="ranking-list">
+      {% for p in top10 %}
+      <div class="ranking-card">
+        <div class="ranking-l1">
+          <span class="ranking-pos">{{ loop.index }}</span>
+          <span class="ranking-nome">{{ p.nome }}</span>
+        </div>
+        <div class="ranking-l2">
+          <span class="ranking-badge ranking-badge-roxo">{{ p.total }} atend.</span>
+          <span class="ranking-sep">·</span>
+          <span class="ranking-info">último {{ p.ultimo }}</span>
+        </div>
+        <div class="ranking-l3">
+          <a href="{{ url_for('pessoas.detalhe', id=p.id) }}" class="ranking-link">
+            Ver ficha →
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p style="font-size:0.72rem; color:var(--cor-aviso); margin:12px 0 0; font-style:italic;">
+      &#9888;&#65039; Alta recorrência pode indicar casos complexos. Atenção especial recomendada.
+    </p>
+    {% else %}
+    <p style="color:var(--texto-suave); font-size:0.88rem;">Sem atendimentos no período.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

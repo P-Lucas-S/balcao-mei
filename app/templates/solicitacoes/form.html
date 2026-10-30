@@ -1,0 +1,528 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}{{ titulo }}{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/solicitacoes.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="form-card">
+  <form method="POST" id="form-solicitacao">
+    <input type="hidden" name="atendimento_id" value="{{ form.get('atendimento_id', atendimento.id if atendimento else '') }}">
+
+    {% if atendimento %}
+    <div style="background:#e8f6f4; border:1px solid var(--borda); border-radius:var(--radius);
+                padding:10px 14px; margin-bottom:20px; font-size:0.88rem; color:var(--texto-principal);">
+      &#128279; Vinculada ao
+      <a href="{{ url_for('atendimentos.detalhe', id=atendimento.id) }}"
+         style="color:var(--cor-acento); font-weight:600;">
+        Atendimento #{{ atendimento.id }}
+      </a>
+      — {{ atendimento.pessoa.nome_razao_social }}
+      ({{ atendimento.data_atendimento.strftime('%d/%m/%Y') }})
+    </div>
+    {% endif %}
+
+    {# ── Data e Responsável ── #}
+    <p class="section-label">Identificação</p>
+    <div class="form-row col-2">
+      <div class="form-group">
+        <label for="data_solicitacao">Data</label>
+        <input type="date" id="data_solicitacao" name="data_solicitacao"
+               value="{{ form.get('data_solicitacao', '') }}" required>
+      </div>
+      <div class="form-group">
+        <label for="id_usuario">Responsável</label>
+        {% if current_user.perfil.nome == 'atendente' %}
+          <input type="hidden" name="id_usuario" value="{{ current_user.id }}">
+          <div class="campo-bloqueado">
+            <span style="font-size:0.9rem; font-weight:600;">{{ current_user.nome }}</span>
+            <small>Responsável automático</small>
+          </div>
+        {% else %}
+          <select id="id_usuario" name="id_usuario" required>
+            <option value="">Selecione…</option>
+            {% for u in usuarios %}
+            <option value="{{ u.id }}"
+                    {{ 'selected' if form.get('id_usuario','') == u.id|string }}>
+              {{ u.nome }}
+            </option>
+            {% endfor %}
+          </select>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Pessoa ── #}
+    <p class="section-label">Pessoa</p>
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group">
+        <label>Nome / CPF / CNPJ</label>
+        {% if atendimento %}
+        {# Pessoa definida pelo atendimento — campo somente leitura #}
+        <input type="hidden" id="id_pessoa" name="id_pessoa"
+               value="{{ atendimento.id_pessoa }}" required>
+        <div class="campo-bloqueado">
+          <span style="font-size:0.9rem; font-weight:600;">
+            {{ atendimento.pessoa.nome_razao_social }}
+          </span>
+          <small>Definida pelo atendimento</small>
+        </div>
+        {% else %}
+        <div class="pessoa-search-wrapper">
+          <input type="text" id="pessoa-busca" placeholder="Digite para buscar…" autocomplete="off">
+          <span class="pessoa-clear" id="pessoa-clear">&#10005;</span>
+          <div class="pessoa-dropdown" id="pessoa-dropdown"></div>
+        </div>
+        <div class="pessoa-selecionada" id="pessoa-selecionada"></div>
+        <div id="alerta-solic-duplicada"
+             style="display:none; margin-top:8px; background:#fef3c7;
+                    border:1px solid #f59e0b; border-radius:6px;
+                    padding:8px 12px; font-size:0.82rem; color:#92400e;">
+        </div>
+        <input type="hidden" id="id_pessoa" name="id_pessoa"
+               value="{{ form.get('id_pessoa', '') }}" required>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Tipo e Status ── #}
+    <p class="section-label">Tipo e Status</p>
+    <div class="form-row col-2">
+      <div class="form-group">
+        <label for="id_tipo_solicitacao">Tipo de Solicitação</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="id_tipo_solicitacao" name="id_tipo_solicitacao" required style="flex:1;">
+            <option value="">Selecione…</option>
+            {% for t in tipos %}
+            <option value="{{ t.id }}"
+                    {{ 'selected' if form.get('id_tipo_solicitacao','') == t.id|string }}>
+              {{ t.descricao }}
+            </option>
+            {% endfor %}
+          </select>
+          {% if current_user.perfil.nome in ['administrador', 'supervisor', 'atendente'] %}
+          <button type="button" class="btn btn-outline"
+                  onclick="abrirModal('tipo-solicitacao', 'Novo Tipo de Solicitação', adicionarOpcaoSelect.bind(null, 'id_tipo_solicitacao'))">
+            &#43; Novo
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="id_status">Status</label>
+        {% if current_user.perfil.nome == 'atendente' %}
+          {% set status_pendente = status | selectattr('descricao', 'equalto', 'Pendente') | first %}
+          {% if not status_pendente %}{% set status_pendente = status | first %}{% endif %}
+          <input type="hidden" name="id_status"
+                 value="{{ form.get('id_status', status_pendente.id if status_pendente else '') }}">
+          <div class="campo-bloqueado">
+            <span class="badge-status s-pendente">Pendente</span>
+            <small>Status definido automaticamente</small>
+          </div>
+        {% else %}
+          <select id="id_status" name="id_status" required>
+            <option value="">Selecione…</option>
+            {% for s in status %}
+            <option value="{{ s.id }}"
+                    {{ 'selected' if form.get('id_status','') == s.id|string }}>
+              {{ s.descricao }}
+            </option>
+            {% endfor %}
+          </select>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Evento e Atividade ── #}
+    <p class="section-label">Evento e Atividade <span style="font-weight:400; color:#aaa; font-size:0.9em;">(opcionais)</span></p>
+    <div class="form-row col-2">
+      <div class="form-group">
+        <label for="evento-texto">Evento <span class="opcional">(opcional)</span></label>
+        <div style="display:flex; gap:8px; align-items:flex-start;">
+          <div class="combobox-wrapper" id="combobox-evento">
+            <div class="combobox-input-row">
+              <input type="text"
+                     class="combobox-input"
+                     id="evento-texto"
+                     placeholder="Digite ou selecione um evento…"
+                     autocomplete="off">
+              <span class="combobox-arrow">&#9660;</span>
+            </div>
+            <input type="hidden" name="id_evento" id="id_evento"
+                   value="{{ form.get('id_evento', '') }}">
+            <div class="combobox-dropdown" id="evento-dropdown">
+              <div class="combobox-option nenhum"
+                   data-id="" data-label="— Nenhum —">
+                — Nenhum —
+              </div>
+              {% for e in eventos %}
+              <div class="combobox-option"
+                   data-id="{{ e.id }}"
+                   data-label="{{ e.descricao }}">
+                {{ e.descricao }}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% if current_user.perfil.nome in ['administrador', 'supervisor'] %}
+          <button type="button" class="btn btn-outline"
+                  onclick="novoRapidoCombobox('evento', 'id_evento', 'evento-texto', 'evento-dropdown')">
+            &#43; Novo
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="field-label-row">
+          <label for="id_atividade">Atividade <span class="opcional">(opcional)</span></label>
+          {% if current_user.perfil.nome in ['administrador', 'supervisor', 'atendente'] %}
+          <button type="button" class="btn-novo-rapido" onclick="abrirModal('atividade', 'Nova Atividade', adicionarOpcaoSelect.bind(null, 'id_atividade'))">
+            &#43; Novo
+          </button>
+          {% endif %}
+        </div>
+        <select id="id_atividade" name="id_atividade">
+          <option value="">Nenhuma</option>
+          {% for a in atividades %}
+          <option value="{{ a.id }}"
+                  {{ 'selected' if form.get('id_atividade','') == a.id|string }}>
+            {{ a.descricao }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {# ── Descrição e Observação ── #}
+    <p class="section-label">Detalhes</p>
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group">
+        <label for="descricao">Descrição <span class="opcional">(opcional)</span></label>
+        <textarea id="descricao" name="descricao"
+                  placeholder="Descreva a solicitação…">{{ form.get('descricao', '') }}</textarea>
+      </div>
+    </div>
+    <div class="form-row" style="grid-template-columns:1fr;">
+      <div class="form-group">
+        <label for="observacao">Observação <span class="opcional">(opcional)</span></label>
+        <textarea id="observacao" name="observacao"
+                  placeholder="Informações adicionais…">{{ form.get('observacao', '') }}</textarea>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">&#10003; Salvar</button>
+      {% if acao == 'editar' and sol %}
+        <a href="{{ url_for('solicitacoes.detalhe', id=sol.id) }}" class="btn btn-link">Cancelar</a>
+      {% else %}
+        <a href="{{ url_for('solicitacoes.index') }}" class="btn btn-link">Cancelar</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <div id="modal-rapido" class="modal-rapido-overlay" style="display:none">
+    <div class="modal-rapido-box">
+      <p class="modal-rapido-titulo" id="modal-titulo"></p>
+      <input type="text" id="modal-input" class="modal-rapido-input"
+             placeholder="Digite a descrição…" maxlength="100">
+      <p class="modal-rapido-erro" id="modal-erro" style="display:none"></p>
+      <div class="modal-rapido-btns">
+        <button type="button" class="btn btn-primary" id="modal-salvar">Salvar</button>
+        <button type="button" class="btn btn-link"    id="modal-cancelar">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PESSOAS = [
+  {% for p in pessoas %}
+  { id: {{ p.id }}, nome: {{ p.nome_razao_social|tojson }}, doc: {{ (p.cpf or p.cnpj or '')|tojson }} }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+const busca       = document.getElementById('pessoa-busca');
+const hiddenId    = document.getElementById('id_pessoa');
+const dropdown    = document.getElementById('pessoa-dropdown');
+const selecionada = document.getElementById('pessoa-selecionada');
+const clearBtn    = document.getElementById('pessoa-clear');
+
+const preId = hiddenId.value;
+if (preId) {
+  const pre = PESSOAS.find(p => p.id == preId);
+  if (pre) {
+    busca.value = pre.nome;
+    selecionada.textContent = pre.doc ? `${pre.nome} — ${pre.doc}` : pre.nome;
+    selecionada.classList.add('visivel');
+    clearBtn.classList.add('visivel');
+  }
+}
+
+busca.addEventListener('input', function () {
+  const q = this.value.trim().toLowerCase();
+  clearBtn.classList.toggle('visivel', q.length > 0);
+  if (q.length < 1) { dropdown.classList.remove('aberto'); return; }
+
+  const qDigits = q.replace(/\D/g, '');
+  const matches = PESSOAS.filter(p => {
+    const docDigits = p.doc.replace(/\D/g, '');
+    return p.nome.toLowerCase().includes(q)
+      || p.doc.toLowerCase().includes(q)
+      || (qDigits.length >= 3 && docDigits.includes(qDigits));
+  }).slice(0, 8);
+
+  dropdown.innerHTML = matches.length === 0
+    ? '<div class="dropdown-item sem-resultado">Nenhuma pessoa encontrada.</div>'
+    : matches.map(p =>
+        `<div class="dropdown-item" data-id="${p.id}" data-nome="${p.nome}" data-doc="${p.doc}">
+          ${p.nome}${p.doc ? `<span class="doc">${p.doc}</span>` : ''}
+        </div>`
+      ).join('');
+
+  dropdown.querySelectorAll('.dropdown-item[data-id]').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      hiddenId.value = el.dataset.id;
+      busca.value    = el.dataset.nome;
+      selecionada.textContent = el.dataset.doc
+        ? `${el.dataset.nome} — ${el.dataset.doc}`
+        : el.dataset.nome;
+      selecionada.classList.add('visivel');
+      clearBtn.classList.add('visivel');
+      dropdown.classList.remove('aberto');
+      const pid = el.dataset.id;
+      setTimeout(() => {
+        fetch(`{{ url_for('solicitacoes.index') }}pendentes-pessoa/${pid}`)
+          .then(r => r.json())
+          .then(data => {
+            const alertaEl = document.getElementById('alerta-solic-duplicada');
+            if (!alertaEl) return;
+            if (data.total > 0) {
+              alertaEl.innerHTML = `⚠️ Este empreendedor já possui
+                <strong>${data.total}</strong> solicitação(ões) pendente(s).
+                ${data.mais_recente ? `Mais recente: <em>${data.mais_recente}</em>` : ''}`;
+              alertaEl.style.display = 'block';
+            } else {
+              alertaEl.style.display = 'none';
+            }
+          })
+          .catch(() => {});
+      }, 200);
+    });
+  });
+
+  dropdown.classList.add('aberto');
+});
+
+clearBtn.addEventListener('click', () => {
+  busca.value = ''; hiddenId.value = '';
+  selecionada.classList.remove('visivel');
+  clearBtn.classList.remove('visivel');
+  dropdown.classList.remove('aberto');
+  busca.focus();
+});
+
+busca.addEventListener('blur', () => setTimeout(() => dropdown.classList.remove('aberto'), 150));
+
+// ── Modal rápido de cadastro de domínio ───────────────────────────────────
+let _modalCallback = null;
+let _modalChave    = null;
+
+function abrirModal(chave, titulo, callback) {
+  _modalChave    = chave;
+  _modalCallback = callback;
+  document.getElementById('modal-titulo').textContent = titulo;
+  document.getElementById('modal-input').value = '';
+  document.getElementById('modal-erro').style.display = 'none';
+  document.getElementById('modal-rapido').style.display = 'flex';
+  document.getElementById('modal-input').focus();
+}
+
+function fecharModal() {
+  document.getElementById('modal-rapido').style.display = 'none';
+}
+
+document.getElementById('modal-cancelar').addEventListener('click', fecharModal);
+document.getElementById('modal-rapido').addEventListener('click', function(e) {
+  if (e.target === this) fecharModal();
+});
+
+document.getElementById('modal-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); salvarRapido(); }
+  if (e.key === 'Escape') fecharModal();
+});
+
+document.getElementById('modal-salvar').addEventListener('click', salvarRapido);
+
+async function salvarRapido() {
+  const descricao = document.getElementById('modal-input').value.trim();
+  const erroEl    = document.getElementById('modal-erro');
+  if (!descricao) {
+    erroEl.textContent = 'Digite uma descrição.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('modal-salvar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  try {
+    const url  = "{{ url_for('tabelas.novo_rapido', chave='__CHAVE__') }}"
+                   .replace('__CHAVE__', _modalChave);
+    const resp = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ descricao })
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      erroEl.textContent = data.erro || 'Erro ao salvar.';
+      erroEl.style.display = 'block';
+    } else if (data.duplicata) {
+      erroEl.textContent = 'Já existe — selecionando o existente.';
+      erroEl.style.display = 'block';
+      setTimeout(() => { _modalCallback(data.id, data.descricao); fecharModal(); }, 1200);
+    } else {
+      _modalCallback(data.id, data.descricao);
+      fecharModal();
+    }
+  } catch {
+    erroEl.textContent = 'Erro de conexão.';
+    erroEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Salvar';
+  }
+}
+
+function adicionarOpcaoSelect(selectId, id, descricao) {
+  const sel = document.getElementById(selectId);
+  const opt = document.createElement('option');
+  opt.value    = id;
+  opt.text     = descricao;
+  opt.selected = true;
+  sel.appendChild(opt);
+}
+
+document.getElementById('form-solicitacao').addEventListener('submit', function (e) {
+  if (!hiddenId.value) {
+    e.preventDefault();
+    busca.style.borderColor = '#dc3545';
+    busca.focus();
+  }
+});
+
+// ── Combobox genérico ─────────────────────────────────────────────────────
+function iniciarCombobox(wrapperId, inputId, hiddenId, dropdownId) {
+  const wrapper  = document.getElementById(wrapperId);
+  const input    = document.getElementById(inputId);
+  const hidden   = document.getElementById(hiddenId);
+  const dropdown = document.getElementById(dropdownId);
+  if (!wrapper || !input || !hidden || !dropdown) return;
+
+  const opcoes = () => Array.from(dropdown.querySelectorAll('.combobox-option'));
+
+  function filtrar(termo) {
+    const t = termo.toLowerCase().trim();
+    let visiveis = 0;
+    opcoes().forEach(op => {
+      const label   = (op.dataset.label || '').toLowerCase();
+      const visivel = !t || op.classList.contains('nenhum') || label.includes(t);
+      op.style.display = visivel ? '' : 'none';
+      if (visivel) visiveis++;
+    });
+    let semRes = dropdown.querySelector('.combobox-sem-resultado');
+    if (t && visiveis <= 1) {
+      if (!semRes) {
+        semRes = document.createElement('div');
+        semRes.className = 'combobox-sem-resultado';
+        semRes.textContent = 'Nenhum resultado';
+        dropdown.appendChild(semRes);
+      }
+      semRes.style.display = '';
+    } else if (semRes) {
+      semRes.style.display = 'none';
+    }
+  }
+
+  function selecionar(op) {
+    hidden.value = op.dataset.id;
+    input.value  = op.dataset.id ? op.dataset.label : '';
+    opcoes().forEach(o => o.classList.remove('selecionada'));
+    op.classList.add('selecionada');
+    fecharCombobox();
+  }
+
+  function abrirCombobox() {
+    wrapper.classList.add('aberto');
+    filtrar(input.value);
+  }
+
+  function fecharCombobox() {
+    wrapper.classList.remove('aberto');
+  }
+
+  input.addEventListener('click',  abrirCombobox);
+  input.addEventListener('input',  () => { abrirCombobox(); filtrar(input.value); });
+
+  dropdown.addEventListener('mousedown', e => {
+    const op = e.target.closest('.combobox-option');
+    if (op) { e.preventDefault(); selecionar(op); }
+  });
+
+  document.addEventListener('click', e => {
+    if (!wrapper.contains(e.target)) fecharCombobox();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && wrapper.classList.contains('aberto')) fecharCombobox();
+  });
+
+  // Pré-selecionar valor existente (modo edição)
+  const valorAtual = hidden.value;
+  if (valorAtual) {
+    const op = opcoes().find(o => o.dataset.id == valorAtual);
+    if (op) { input.value = op.dataset.label; op.classList.add('selecionada'); }
+  }
+}
+
+// Callback do "+ Novo" para combobox — usa abrirModal existente
+function novoRapidoCombobox(chave, hiddenId, inputId, dropdownId) {
+  const titulos = {
+    'evento':             'Novo Evento',
+    'tipo-solicitacao':   'Novo Tipo de Solicitação',
+    'atividade':          'Nova Atividade',
+  };
+  abrirModal(chave, titulos[chave] || 'Novo Item', function(id, descricao) {
+    const dropdown = document.getElementById(dropdownId);
+    const hidden   = document.getElementById(hiddenId);
+    const input    = document.getElementById(inputId);
+    // Adicionar nova opção ao combobox
+    const novaOp = document.createElement('div');
+    novaOp.className      = 'combobox-option selecionada';
+    novaOp.dataset.id     = id;
+    novaOp.dataset.label  = descricao;
+    novaOp.textContent    = descricao;
+    dropdown.appendChild(novaOp);
+    // Selecionar automaticamente
+    hidden.value = id;
+    input.value  = descricao;
+    // Desselecionar outras
+    dropdown.querySelectorAll('.combobox-option').forEach(o => {
+      if (o !== novaOp) o.classList.remove('selecionada');
+    });
+    document.getElementById('combobox-' + chave.replace(/-/g, ''))
+      ?.classList.remove('aberto');
+  });
+}
+
+// Inicializar combobox de evento
+iniciarCombobox('combobox-evento', 'evento-texto', 'id_evento', 'evento-dropdown');
+</script>
+{% endblock %}

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block titulo %}Desempenho por Atendente — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Desempenho por Atendente{% endblock %}
+
+{% block conteudo %}
+
+<div class="toolbar" style="margin-bottom:20px;">
+  <div>
+    <p style="font-size:0.85rem; color:var(--texto-secundario); margin:4px 0 0;">
+      {{ filtros.data_inicio.strftime('%d/%m/%Y') }} a
+      {{ filtros.data_fim.strftime('%d/%m/%Y') }}
+      &nbsp;·&nbsp; {{ total_geral }} atendimento(s)
+    </p>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:8px;">
+    <a href="{{ url_for('relatorios.exportar_desempenho', formato='pdf',
+             data_inicio=filtros.data_inicio, data_fim=filtros.data_fim,
+             usuario_id=filtros.usuario_id or '') }}"
+              target="_blank"
+               class="btn btn-danger-outline">&#128196; PDF</a>
+    <a href="{{ url_for('relatorios.exportar_desempenho', formato='xlsx',
+             data_inicio=filtros.data_inicio, data_fim=filtros.data_fim,
+             usuario_id=filtros.usuario_id or '') }}" class="btn btn-outline"
+      style="color:var(--cor-sucesso);border-color:var(--cor-sucesso);">
+      &#128202; Excel</a>
+    <a href="{{ url_for('relatorios.index') }}" class="btn btn-secondary">&#8592; Voltar</a>
+  </div>
+</div>
+
+{# ── Filtros ── #}
+<div class="card" style="padding:20px; margin-bottom:20px;">
+  <form method="GET" action="{{ url_for('relatorios.desempenho') }}"
+    style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+    <div class="form-group" style="margin:0;">
+      <label>Data Início</label>
+      <input type="date" name="data_inicio" value="{{ filtros.data_inicio }}">
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Data Fim</label>
+      <input type="date" name="data_fim" value="{{ filtros.data_fim }}">
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Atendente</label>
+      <select name="usuario_id">
+        <option value="">Todos</option>
+        {% for a in atendentes %}
+        <option value="{{ a.id }}" {% if filtros.usuario_id==a.id %}selected{% endif %}>
+          {{ a.nome }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+    <a href="{{ url_for('relatorios.desempenho') }}" class="btn btn-secondary">&#10005;</a>
+  </form>
+  <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+    <span style="font-size:0.75rem; color:var(--texto-suave); font-weight:700;
+                 text-transform:uppercase; letter-spacing:0.5px;">Atalho:</span>
+    <a href="{{ url_for('relatorios.desempenho',
+               data_inicio=hoje.replace(day=1).isoformat(),
+               data_fim=hoje.isoformat()) }}"
+       class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px;">Mês Atual</a>
+    <a href="{{ url_for('relatorios.desempenho',
+               data_inicio=mes_anterior_inicio.isoformat(),
+               data_fim=mes_anterior_fim.isoformat()) }}"
+       class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px;">Mês Anterior</a>
+  </div>
+</div>
+
+{# ── Heatmap de evolução mensal ── #}
+{% if evolucao_mensal and labels_meses|length > 1 %}
+<div class="secao-card" style="margin-bottom:24px;">
+  <div class="secao-header">
+    <span class="secao-titulo">&#128197; Evolução Mensal por Atendente</span>
+    <span style="font-size:0.72rem; color:var(--texto-suave);">
+      atendimentos por mês no período
+    </span>
+  </div>
+  <div class="secao-corpo" style="overflow-x:auto; padding:0 16px 16px;">
+    <table style="border-collapse:collapse; font-size:0.78rem;
+                  min-width:500px; width:100%;">
+      <thead>
+        <tr>
+          <th style="text-align:left; padding:6px 12px 6px 0;
+                     color:var(--texto-suave); font-size:0.72rem;
+                     font-weight:700; min-width:120px;">Atendente</th>
+          {% for label in labels_meses %}
+          <th style="text-align:center; padding:6px 8px;
+                     color:var(--texto-suave); font-size:0.72rem;
+                     font-weight:700; min-width:48px;">{{ label }}</th>
+          {% endfor %}
+          <th style="text-align:center; padding:6px 8px;
+                     color:var(--texto-suave); font-size:0.72rem;
+                     font-weight:700; min-width:60px;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in evolucao_mensal %}
+        <tr>
+          <td style="padding:6px 12px 6px 0; font-weight:600;
+                     color:var(--texto-principal); white-space:nowrap;">
+            {{ linha.nome }}
+          </td>
+          {% for val in linha.meses %}
+          {% set op = (val / max_val_evolucao * 0.85) | round(2)
+                      if max_val_evolucao > 0 else 0 %}
+          <td style="padding:5px 8px; text-align:center;
+                     background:rgba(15,76,92,{{ op }});
+                     color:{% if op > 0.45 %}white{% else %}var(--texto-principal){% endif %};
+                     font-weight:{% if val > 0 %}600{% else %}400{% endif %};
+                     border-radius:4px; font-size:0.8rem;">
+            {{ val if val > 0 else '—' }}
+          </td>
+          {% endfor %}
+          <td style="padding:5px 8px; text-align:center; font-weight:700;
+                     color:var(--cor-primaria); font-size:0.85rem;">
+            {{ linha.total }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="font-size:0.72rem; color:var(--texto-suave);
+              margin:10px 0 0; font-style:italic;">
+      Cores mais escuras = maior volume de atendimentos no mês.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{# ── Tabela de resultados ── #}
+{% if dados %}
+<div class="card table-to-cards" style="overflow:hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th style="padding-left:20px;">Atendente</th>
+        <th style="text-align:center;">Total</th>
+        <th style="text-align:right; padding-right:20px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in dados %}
+      <tr>
+        <td data-label="Atendente" style="font-weight:600; padding-left:20px;">{{ r.usuario_nome }}</td>
+        <td data-label="Total" style="text-align:center; font-weight:700; font-size:1.1rem;
+                   color:var(--cor-primaria);">{{ r.total }}</td>
+        <td data-label="Ações" style="text-align:right; padding-right:20px;">
+          <a href="{{ url_for('relatorios.desempenho_individual', usuario_id=r.usuario_id,
+                   data_inicio=filtros.data_inicio, data_fim=filtros.data_fim) }}" class="btn btn-outline"
+            style="font-size:0.78rem; padding:5px 12px;">
+            &#128065; Ver perfil
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--cor-primaria); color:white;">
+        <td style="font-weight:700; padding:12px 20px;">TOTAL GERAL</td>
+        <td style="text-align:center; font-weight:700; padding:12px 16px;">
+          {{ dados | sum(attribute='total') }}
+        </td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div>&#128202;</div>
+    <p>Nenhum dado encontrado para os filtros selecionados.</p>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

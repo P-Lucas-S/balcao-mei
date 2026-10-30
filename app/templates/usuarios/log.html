@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% from "_paginacao.html" import paginacao as render_paginacao %}
+{% block titulo %}Log de Ações — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Log de Ações{% endblock %}
+
+{% block conteudo %}
+
+<div class="toolbar" style="margin-bottom:20px;">
+  <form method="GET" style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; width:100%;">
+    <div class="form-group" style="margin:0;">
+      <label>Tipo</label>
+      <select name="acao">
+        <option value="">Todos</option>
+        <option value="exclusao"      {{ 'selected' if acao_filtro == 'exclusao' }}>Exclusão</option>
+        <option value="mesclagem"     {{ 'selected' if acao_filtro == 'mesclagem' }}>Mesclagem</option>
+        <option value="status"        {{ 'selected' if acao_filtro == 'status' }}>Alteração de Status</option>
+        <option value="login"         {{ 'selected' if acao_filtro == 'login' }}>Login</option>
+        <option value="sincronizacao" {{ 'selected' if acao_filtro == 'sincronizacao' }}>Sincronização Receita</option>
+        <option value="logout"       {{ 'selected' if acao_filtro == 'logout' }}>Logout</option>
+        <option value="login_falha"   {{ 'selected' if acao_filtro == 'login_falha' }}>Tentativa Falha</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Usuário</label>
+      <select name="usuario_id">
+        <option value="">Todos</option>
+        {% for u in usuarios_ativos %}
+        <option value="{{ u.id }}" {{ 'selected' if usuario_filtro == u.id|string }}>{{ u.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>De</label>
+      <input type="date" name="data_de" value="{{ data_de_filtro }}">
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Até</label>
+      <input type="date" name="data_ate" value="{{ data_ate_filtro }}">
+    </div>
+    <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+    {% if acao_filtro or usuario_filtro or data_de_filtro or data_ate_filtro %}
+    <a href="{{ url_for('usuarios.log') }}" class="btn btn-secondary">&#10005;</a>
+    {% endif %}
+  </form>
+  <a href="{{ url_for('usuarios.exportar_log',
+                      acao=acao_filtro, usuario_id=usuario_filtro,
+                      data_de=data_de_filtro, data_ate=data_ate_filtro) }}"
+     class="btn btn-outline"
+     style="color:var(--cor-sucesso); border-color:var(--cor-sucesso);">
+    &#128202; Excel
+  </a>
+  <a href="{{ url_for('usuarios.exportar_log_pdf',
+                      acao=acao_filtro, usuario_id=usuario_filtro,
+                      data_de=data_de_filtro, data_ate=data_ate_filtro) }}"
+     class="btn btn-outline"
+     style="color:var(--cor-perigo); border-color:var(--cor-perigo);">
+    &#128196; PDF
+  </a>
+  <a href="{{ url_for('usuarios.index') }}" class="btn btn-secondary">&#8592; Voltar</a>
+</div>
+
+<div class="card">
+  {% if logs %}
+  <table>
+    <thead>
+      <tr>
+        <th>Data/Hora</th>
+        <th>Usuário</th>
+        <th>Tipo</th>
+        <th>Descrição</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td data-label="Data/Hora" class="td-destaque">
+          <span>{{ log.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+        </td>
+        <td data-label="Usuário">
+          <span>{{ log.usuario.nome if log.usuario else '—' }}</span>
+        </td>
+        <td data-label="Tipo">
+          <span>
+            {% if log.acao == 'exclusao' %}
+              <span class="tipo-tag" style="background:#fee2e2; color:#b91c1c;">&#128465; Exclusão</span>
+            {% elif log.acao == 'mesclagem' %}
+              <span class="tipo-tag" style="background:#fef9c3; color:#92400e;">&#8649; Mesclagem</span>
+            {% elif log.acao == 'status' %}
+              <span class="tipo-tag" style="background:#dbeafe; color:#1d4ed8;">&#8635; Status</span>
+            {% elif log.acao == 'login' %}
+              <span class="tipo-tag" style="background:#f0fdf4; color:#15803d;">&#128275; Login</span>
+            {% elif log.acao == 'sincronizacao' %}
+              <span class="tipo-tag" style="background:#dff2ef; color:#0f766e;">&#128260; Sincronização</span>
+            {% elif log.acao == 'logout' %}
+              <span class="tipo-tag" style="background:#f0fdf4; color:#15803d;">🚪 Logout</span>
+            {% elif log.acao == 'login_falha' %}
+              <span class="tipo-tag" style="background:#fee2e2; color:#991b1b;">⚠️ Tentativa Falha</span>
+            {% else %}
+              <span class="tipo-tag" style="background:#f3f4f6; color:#374151;">{{ log.acao }}</span>
+            {% endif %}
+          </span>
+        </td>
+        <td data-label="Descrição">
+          <span>{{ log.descricao }}</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ render_paginacao(paginacao, 'usuarios.log', acao=acao_filtro) }}
+  {% else %}
+  <div class="empty-state">
+    <div>&#128196;</div>
+    <p>Nenhuma ação registrada ainda.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% from "_paginacao.html" import paginacao as render_paginacao %}
+{% block titulo %}Atendimentos — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Atendimentos{% endblock %}
+
+{% block estilos %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/atendimentos.css') }}">
+{% endblock %}
+
+{% block conteudo %}
+{% set _fa = data_de or data_ate or q_pessoa or f_usuario or f_tipo %}
+
+{# ── Barra de ações ────────────────────────────────────────────────────── #}
+<div class="toolbar">
+  <a href="{{ url_for('atendimentos.iniciar') }}"
+     class="btn btn-primary"
+     style="background:var(--cor-sucesso);">
+    &#127919; Iniciar Atendimento
+  </a>
+  <a href="{{ url_for('atendimentos.rapido') }}"
+     class="btn btn-primary"
+     style="background:var(--cor-acento);">
+    &#9889; Atendimento Rápido
+  </a>
+  <a href="{{ url_for('solicitacoes.nova_rapida') }}"
+     class="btn btn-outline"
+     style="color:var(--cor-primaria); border-color:var(--cor-primaria);">
+    &#128221; Solicitação Rápida
+  </a>
+  <div class="dropdown-secundario" style="position:relative; display:inline-block;">
+    <button class="btn btn-outline"
+            onclick="this.nextElementSibling.classList.toggle('aberto')"
+            style="font-size:0.82rem;">
+      &#8943; Mais
+    </button>
+    <div class="dropdown-secundario-menu" style="
+      display:none; position:absolute; right:0; top:100%;
+      background:white; border:1px solid var(--borda,#ddd);
+      border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1);
+      min-width:200px; z-index:100; padding:6px 0;">
+      <a href="{{ url_for('atendimentos.novo') }}"
+         style="display:block; padding:8px 16px; font-size:0.85rem;
+                color:var(--texto-principal,#1f2937); text-decoration:none;">
+        &#43; Novo Atendimento (retroativo)
+      </a>
+    </div>
+  </div>
+</div>
+
+{# ── Botão accordion (mobile only) ────────────────────────────────────── #}
+<div class="filtros-mobile-btn">
+  <button type="button"
+          onclick="document.getElementById('filtros-atend').classList.toggle('aberto')"
+          aria-controls="filtros-atend">
+    <span>&#128269; Filtros{% if _fa %}&nbsp;<span class="filtros-badge">&#9679;</span>{% endif %}</span>
+    <span style="font-size:0.75rem; color:var(--texto-suave);">&#9660;</span>
+  </button>
+</div>
+
+{# ── Barra de filtros (desktop) / corpo accordion (mobile) ─────────────── #}
+<form method="GET" action="">
+  <div class="filtros-barra filtros-mobile-corpo {% if _fa %}aberto{% endif %}"
+       id="filtros-atend">
+
+    <div class="filtro-campo filtro-busca-pessoa">
+      <label for="atend-q-pessoa">Pessoa</label>
+      <input type="text" id="atend-q-pessoa" name="q_pessoa"
+             placeholder="Nome, CPF ou CNPJ…"
+             value="{{ q_pessoa }}">
+    </div>
+
+    <div class="filtro-campo filtro-data">
+      <label for="atend-data-de">Data de</label>
+      <input type="date" id="atend-data-de" name="data_de"
+             value="{{ data_de }}">
+    </div>
+
+    <div class="filtro-campo filtro-data">
+      <label for="atend-data-ate">Data até</label>
+      <input type="date" id="atend-data-ate" name="data_ate"
+             value="{{ data_ate }}">
+    </div>
+
+    <div class="filtro-campo filtro-select">
+      <label for="atend-tipo">Tipo de Atendimento</label>
+      <select id="atend-tipo" name="tipo_id">
+        <option value="">Todos</option>
+        {% for t in tipos_filtro %}
+        <option value="{{ t.id }}" {{ 'selected' if f_tipo == t.id|string }}>
+          {{ t.descricao }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if current_user.perfil.nome != 'atendente' %}
+    <div class="filtro-campo filtro-select">
+      <label for="atend-usuario">Atendente</label>
+      <select id="atend-usuario" name="usuario_id">
+        <option value="">Todos</option>
+        {% for u in usuarios %}
+        <option value="{{ u.id }}" {{ 'selected' if f_usuario == u.id|string }}>
+          {{ u.nome }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="filtro-acoes">
+      <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+      {% if _fa %}
+      <a href="{{ url_for('atendimentos.index') }}" class="btn btn-secondary">&#10005; Limpar</a>
+      {% endif %}
+    </div>
+
+  </div>
+</form>
+
+{% if data_de or data_ate or q_pessoa or f_tipo %}
+<p class="resultado-info">
+  {{ paginacao.total }} resultado(s)
+  {% if q_pessoa %}<span class="active-filter">pessoa: {{ q_pessoa }}</span>{% endif %}
+  {% if f_tipo %}
+  <span class="active-filter">tipo: {{ tipos_filtro | selectattr('id', 'equalto', f_tipo|int) | map(attribute='descricao') | first | default('') }}</span>
+  {% endif %}
+  {% if data_de %}<span class="active-filter">de: {{ data_de }}</span>{% endif %}
+  {% if data_ate %}<span class="active-filter">até: {{ data_ate }}</span>{% endif %}
+</p>
+{% endif %}
+
+{% if not filtros_ativos %}
+<div class="aviso-filtro-padrao">
+  &#128197; Mostrando atendimentos de hoje.
+  <a href="{{ url_for('atendimentos.index', data_de='2020-01-01') }}">Ver todos os registros</a>
+</div>
+{% endif %}
+
+<div class="chips-filtro">
+  <a href="{{ url_for('atendimentos.index',
+             data_de=hoje.isoformat(), data_ate=hoje.isoformat()) }}"
+     class="chip {% if data_de == hoje.isoformat() and data_ate == hoje.isoformat() %}chip-ativo{% endif %}">
+    Hoje
+  </a>
+  <a href="{{ url_for('atendimentos.index',
+             data_de=(hoje - timedelta(days=1)).isoformat(),
+             data_ate=(hoje - timedelta(days=1)).isoformat()) }}"
+     class="chip {% if data_de == (hoje - timedelta(days=1)).isoformat()
+                        and data_ate == (hoje - timedelta(days=1)).isoformat() %}chip-ativo{% endif %}">
+    Ontem
+  </a>
+  <a href="{{ url_for('atendimentos.index',
+             data_de=(hoje - timedelta(days=7)).isoformat(),
+             data_ate=hoje.isoformat()) }}"
+     class="chip {% if data_de == (hoje - timedelta(days=7)).isoformat()
+                        and data_ate == hoje.isoformat() %}chip-ativo{% endif %}">
+    Esta semana
+  </a>
+  <a href="{{ url_for('atendimentos.index',
+             data_de=hoje.replace(day=1).isoformat(),
+             data_ate=hoje.isoformat()) }}"
+     class="chip {% if data_de == hoje.replace(day=1).isoformat()
+                        and data_ate == hoje.isoformat() %}chip-ativo{% endif %}">
+    Este mês
+  </a>
+</div>
+
+<div class="card table-to-cards">
+  {% if atendimentos %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Data/Hora</th>
+        <th>Pessoa</th>
+        <th>Atendente</th>
+        <th>Tipos</th>
+        <th>Observação</th>
+        <th>Solicitação</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for data_grupo, grupo in grupos_data %}
+      <tr class="linha-data-grupo">
+        <td colspan="8"
+            style="padding:8px 12px 4px;
+                   font-size:0.75rem; font-weight:700;
+                   text-transform:uppercase; letter-spacing:0.05em;
+                   color:var(--texto-suave);
+                   background:var(--bg-pagina);
+                   border-top:2px solid var(--borda);">
+          {% if data_grupo == hoje %}
+            Hoje — {{ data_grupo.strftime('%d/%m/%Y') }}
+          {% elif data_grupo == hoje - timedelta(days=1) %}
+            Ontem — {{ data_grupo.strftime('%d/%m/%Y') }}
+          {% else %}
+            {{ dias_pt[data_grupo.weekday()] }}, {{ data_grupo.strftime('%d/%m/%Y') }}
+          {% endif %}
+          <span style="font-weight:400; color:var(--texto-suave); margin-left:8px;">
+            ({{ grupo | length }} atendimento{{ 's' if grupo | length != 1 }})
+          </span>
+        </td>
+      </tr>
+      {% for a in grupo %}
+      <tr>
+        <td data-label="#" class="td-mobile-oculto"><span>{{ a.id }}</span></td>
+        <td data-label="Data/Hora" class="td-destaque">
+          <span>{{ a.data_atendimento.strftime('%d/%m/%Y') }}
+          <small style="color:var(--texto-suave,#6b7280);">
+            {{ a.hora_atendimento.strftime('%H:%M') }}
+          </small></span>
+        </td>
+        <td data-label="Pessoa">
+          <a href="{{ url_for('pessoas.detalhe', id=a.id_pessoa) }}" class="nome-link">
+            {{ a.pessoa.nome_razao_social }}
+          </a>
+          {# Selo "Em aberto" — informativo, não erro. Leva à retomada. #}
+          {% if a.rascunho %}
+          <a class="selo-em-aberto"
+             href="{{ url_for('atendimentos.iniciar', retomar=a.id) }}"
+             title="Retomar este atendimento de onde parou"
+             aria-label="Atendimento em aberto — retomar de onde parou">Em aberto</a>
+          {% endif %}
+        </td>
+        <td data-label="Atendente"><span>{{ a.usuario.nome }}</span></td>
+        <td data-label="Tipos">
+          {% set tipos_lista = a.tipos | list %}
+          {% if tipos_lista | length == 0 %}
+            —
+          {% elif tipos_lista | length <= 2 %}
+            {% for at in tipos_lista %}
+              <span class="tipo-tag">{{ at.servico.descricao }}</span>
+            {% endfor %}
+          {% else %}
+            <span class="tipo-tag">{{ tipos_lista[0].servico.descricao }}</span>
+            <span class="tipo-tag tipo-tag-mais"
+                  title="{{ tipos_lista[1:] | map(attribute='servico.descricao') | join(', ') }}">
+              +{{ tipos_lista | length - 1 }}
+            </span>
+          {% endif %}
+        </td>
+        {% if a.observacao %}
+        <td data-label="Observação"><span>{{ a.observacao }}</span></td>
+        {% else %}
+        <td data-label="Observação" class="td-mobile-oculto"><span>—</span></td>
+        {% endif %}
+        <td data-label="Solicitação">
+          {% set sols = solic_por_atend.get(a.id, []) %}
+          {% if sols %}
+            {% for sid in sols %}
+            <a href="{{ url_for('solicitacoes.detalhe', id=sid) }}"
+               style="display:inline-block; font-size:0.78rem; font-weight:600;
+                      padding:2px 7px; border-radius:4px;
+                      background:var(--cor-primaria-claro,#dff2ef);
+                      color:var(--cor-acento,#0d9488); text-decoration:none;
+                      margin:1px 2px; white-space:nowrap;"
+               title="Ver solicitação #{{ sid }}">
+              &#128203;&nbsp;#{{ sid }}
+            </a>
+            {% endfor %}
+          {% else %}
+            <a href="{{ url_for('solicitacoes.nova', atendimento_id=a.id) }}"
+               style="font-size:0.78rem; color:var(--texto-suave,#6b7280);
+                      text-decoration:none; white-space:nowrap;"
+               title="Criar solicitação para este atendimento">
+              + Solicitação
+            </a>
+          {% endif %}
+        </td>
+        <td data-label="Ações">
+          <div class="acoes">
+            <a href="{{ url_for('atendimentos.detalhe', id=a.id) }}" class="btn btn-outline">Ver</a>
+            <a href="{{ url_for('atendimentos.editar', id=a.id) }}" class="btn btn-outline">Editar</a>
+            {% if current_user.perfil.nome == 'administrador' %}
+            <button class="btn btn-danger-outline"
+                    data-url="{{ url_for('atendimentos.remover', id=a.id) }}"
+                    data-msg="Remover este atendimento?"
+                    onclick="confirmarRemocao(this)">
+              Remover
+            </button>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ render_paginacao(paginacao, 'atendimentos.index',
+     data_de=data_de, data_ate=data_ate,
+     q_pessoa=q_pessoa, usuario_id=f_usuario,
+     tipo_id=f_tipo) }}
+  {% else %}
+  <div class="empty-state">
+    <div>&#128222;</div>
+    {% if data_de or data_ate or q_pessoa %}
+      <p>Nenhum atendimento encontrado para os filtros selecionados.</p>
+    {% else %}
+      <p>Nenhum atendimento registrado ainda.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.dropdown-secundario')) {
+    document.querySelectorAll('.dropdown-secundario-menu.aberto')
+      .forEach(m => m.classList.remove('aberto'));
+  }
+});
+</script>
+{% endblock %}

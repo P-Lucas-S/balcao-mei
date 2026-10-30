@@ -1,0 +1,261 @@
+/* ── Lista ────────────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: nowrap;           /* impede quebra de linha */
+  overflow-x: auto;            /* rolagem horizontal se necessário */
+}
+
+/* Filtros movidos para .filtros-barra em components.css */
+
+.badge-status {
+  padding: 3px 11px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: 20px;
+}
+
+/* ── Detalhe ──────────────────────────────────────────────────────────── */
+.detalhe-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--sombra-card);
+  border: 1px solid var(--borda-suave);
+  padding: 32px;
+  max-width: 860px;
+}
+
+.detalhe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--borda-suave);
+}
+
+.sol-id {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--texto-suave);
+  margin-bottom: 6px;
+}
+
+.sol-data {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--cor-primaria);
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+/* Badge no header do detalhe — tamanho maior */
+.detalhe-header .badge-status {
+  padding: 6px 18px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* Aliases usados no template */
+.s-pendente { background: var(--cor-aviso-bg);   color: var(--cor-aviso);   }
+.s-analise  { background: var(--cor-info-bg);    color: var(--cor-info);    }
+.s-aprovado { background: var(--cor-sucesso-bg); color: var(--cor-sucesso); }
+.s-recusado { background: var(--cor-perigo-bg);  color: var(--cor-perigo);  }
+.s-default  { background: #f3f4f6; color: #6b7280; }
+
+/* ── Grid de dados ────────────────────────────────────────────────────── */
+.dados-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.dado-item label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--texto-suave);
+  margin-bottom: 4px;
+}
+
+.dado-item .valor {
+  font-size: 0.93rem;
+  color: var(--texto-principal);
+  font-weight: 500;
+}
+
+.dado-item .valor a {
+  color: var(--cor-primaria);
+  text-decoration: none;
+  font-weight: 600;
+}
+.dado-item .valor a:hover { text-decoration: underline; }
+
+.dado-item .valor.vazio {
+  color: var(--texto-suave);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* ── Seções de texto (descrição e observação) ─────────────────────────── */
+.secao {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--borda-suave);
+}
+
+.secao label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--texto-suave);
+  margin-bottom: 8px;
+}
+
+.secao p {
+  font-size: 0.9rem;
+  color: var(--texto-principal);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  background: var(--bg-pagina);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  border: 1px solid var(--borda-suave);
+  margin: 0;
+}
+
+/* ── Form ─────────────────────────────────────────────────────────────── */
+.form-card { max-width: 760px; }
+.form-group textarea { min-height: 90px; }
+
+/* ── Troca rápida de status ──────────────────────────────────────────── */
+.badge-clicavel {
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s;
+}
+.badge-clicavel:hover { opacity: 0.8; }
+
+.status-rapido {
+  position: relative;
+  display: inline-block;
+}
+
+.status-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  background: white;
+  border: 1px solid var(--borda);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.status-menu-item {
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.1s;
+  border-radius: 0;
+  margin: 0;
+}
+.status-menu-item:hover { filter: brightness(0.92); }
+.status-menu-item[data-atual="true"] { font-weight: 700; }
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVIDADE
+   ═══════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Status dropdown: alinha à direita */
+  .status-menu {
+    left: auto;
+    right: 0;
+  }
+
+  /* Badge clicável: alvo de toque maior */
+  .badge-clicavel {
+    padding: 6px 12px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Em mobile, pode-se optar por permitir quebra; mantenha nowrap se preferir rolagem */
+  /* .toolbar { flex-wrap: wrap; } */
+}
+
+/* ── Campo bloqueado para atendente ────────────────────────────────────── */
+.campo-bloqueado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+.campo-bloqueado small {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+/* ── Abas de status ─────────────────────────────────────────────────────── */
+.abas-status {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.aba-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 2px solid transparent;
+  color: #374151;
+  background: #e2e8f0;
+  transition: all 0.15s;
+}
+.aba-status:hover { filter: brightness(0.95); }
+.aba-count {
+  background: rgba(0,0,0,0.1);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.75rem;
+}
+.aba-pendente  { color: var(--cor-aviso);   background: var(--cor-aviso-bg); }
+.aba-analise   { color: var(--cor-info);    background: var(--cor-info-bg); }
+.aba-aprovado  { color: var(--cor-sucesso); background: var(--cor-sucesso-bg); }
+.aba-recusado  { color: var(--cor-perigo);  background: var(--cor-perigo-bg); }
+.aba-ativa     { border-color: currentColor; }
+
+/* ── Coluna Idade do pedido ─────────────────────────────────────────────── */
+.idade-pedido {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.idade-ok      { background: #d1fae5; color: #065f46; }
+.idade-alerta  { background: #fef3c7; color: #92400e; }
+.idade-critica { background: #fee2e2; color: #991b1b; }

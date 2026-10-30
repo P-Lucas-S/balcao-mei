@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block titulo %}Atendimentos por Período — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Atendimentos por Período{% endblock %}
+
+{% block conteudo %}
+
+<!-- Toolbar superior -->
+<div class="toolbar" style="margin-bottom:20px;">
+  <div>
+    <p style="font-size:0.85rem; color:var(--texto-secundario); margin:4px 0 0;">
+      {{ filtros.data_inicio.strftime('%d/%m/%Y') }} a
+      {{ filtros.data_fim.strftime('%d/%m/%Y') }}
+      {% if filtros.usuario_nome %}
+        &nbsp;·&nbsp; {{ filtros.usuario_nome }}
+      {% endif %}
+    </p>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:8px;">
+    <a href="{{ url_for('relatorios.exportar_atendimentos', formato='pdf',
+             data_inicio=filtros.data_inicio, data_fim=filtros.data_fim,
+             usuario_id=filtros.usuario_id or '') }}"
+       target="_blank"
+       class="btn btn-danger-outline">&#128196; PDF</a>
+    <a href="{{ url_for('relatorios.exportar_atendimentos', formato='xlsx',
+             data_inicio=filtros.data_inicio, data_fim=filtros.data_fim,
+             usuario_id=filtros.usuario_id or '') }}"
+       class="btn btn-outline"
+       style="color:var(--cor-sucesso);border-color:var(--cor-sucesso);">
+      &#128202; Excel</a>
+    <a href="{{ url_for('relatorios.index') }}" class="btn btn-secondary">&#8592; Voltar</a>
+  </div>
+</div>
+
+<!-- Card de Filtros -->
+<div class="card" style="padding:20px; margin-bottom:20px;">
+  <form method="GET" action="{{ url_for('relatorios.atendimentos') }}"
+        style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+    <div class="form-group" style="margin:0;">
+      <label>Data Início</label>
+      <input type="date" name="data_inicio" value="{{ filtros.data_inicio }}">
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Data Fim</label>
+      <input type="date" name="data_fim" value="{{ filtros.data_fim }}">
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Atendente</label>
+      <select name="usuario_id">
+        <option value="">Todos</option>
+        {% for a in atendentes %}
+          <option value="{{ a.id }}" {% if filtros.usuario_id == a.id %}selected{% endif %}>
+            {{ a.nome }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+    <a href="{{ url_for('relatorios.atendimentos') }}" class="btn btn-secondary">&#10005;</a>
+  </form>
+
+  <!-- Atalhos de período -->
+  <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+    <span style="font-size:0.75rem; color:var(--texto-suave); font-weight:700;
+                 text-transform:uppercase; letter-spacing:0.5px;">Atalho:</span>
+    <a href="{{ url_for('relatorios.atendimentos',
+               data_inicio=hoje.isoformat(),
+               data_fim=hoje.isoformat()) }}"
+       class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px;">Hoje</a>
+    <a href="{{ url_for('relatorios.atendimentos',
+               data_inicio=(hoje - timedelta(days=6)).isoformat(),
+               data_fim=hoje.isoformat()) }}"
+       class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px;">Esta semana</a>
+    <a href="{{ url_for('relatorios.atendimentos',
+               data_inicio=hoje.replace(day=1).isoformat(),
+               data_fim=hoje.isoformat()) }}"
+       class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px;">Este mês</a>
+    <a href="{{ url_for('relatorios.atendimentos',
+               data_inicio=mes_anterior_inicio.isoformat(),
+               data_fim=mes_anterior_fim.isoformat()) }}"
+       class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px;">Mês anterior</a>
+  </div>
+</div>
+
+<!-- Card de total -->
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr));
+            gap:16px; margin-bottom:24px;">
+  <div class="card" style="padding:24px; text-align:center;">
+    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Total de Atendimentos
+    </p>
+    <p style="font-size:2.5rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0;">{{ stats.total }}</p>
+    <p style="font-size:0.78rem; color:var(--texto-suave); margin:8px 0 0;">
+      no período selecionado
+    </p>
+  </div>
+</div>
+
+<!-- Tabela de atendimentos -->
+<div class="card table-to-cards" style="overflow:hidden;">
+  <div style="padding:12px 20px; background:var(--cor-primaria-claro); border-bottom:1px solid var(--borda);">
+    <span style="font-weight:600;">{{ stats.total }} registro(s) encontrado(s)</span>
+    <span style="float:right; font-size:0.78rem; color:var(--texto-suave);">
+      &#128712; Clique nos cabeçalhos para ordenar
+    </span>
+  </div>
+  <table id="tabelaAtendimentos">
+    <thead>
+      <tr>
+        <th style="padding-left:20px;">Nº</th>
+        <th>Data</th>
+        <th>Hora</th>
+        <th>Cidadão</th>
+        <th>CPF</th>
+        <th>Atendente</th>
+        <th>Observação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if dados %}
+        {% for r in dados %}
+        <tr>
+          <td data-label="Nº" style="padding-left:20px; color:var(--texto-suave);">{{ r.id }}</td>
+          <td data-label="Data" style="font-weight:500;">
+            {{ r.data_atendimento.strftime('%d/%m/%Y') if r.data_atendimento else '—' }}
+          </td>
+          <td data-label="Hora" style="color:var(--texto-suave);">
+            {{ r.hora_atendimento.strftime('%H:%M') if r.hora_atendimento else '—' }}
+          </td>
+          <td data-label="Cidadão">{{ r.pessoa_nome or '—' }}</td>
+          <td data-label="CPF" style="color:var(--texto-suave);">{{ r.pessoa_cpf or '—' }}</td>
+          <td data-label="Atendente">{{ r.usuario_nome or '—' }}</td>
+          <td data-label="Observação" style="color:var(--texto-suave);">{{ (r.observacoes or '—')[:60] }}</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="7">
+            <div class="empty-state">
+              <div>&#128450;</div>
+              <p>Nenhum atendimento encontrado para os filtros selecionados.</p>
+            </div>
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+  <div style="padding:8px 20px; border-top:1px solid var(--borda); font-size:0.78rem; color:var(--texto-suave);">
+    &#128337; Hora refere-se ao horário do atendimento registrado.
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Ordenação da tabela ao clicar no cabeçalho
+  document.querySelectorAll('#tabelaAtendimentos thead th').forEach((th, idx) => {
+    th.style.cursor = 'pointer';
+    th.title = 'Clique para ordenar';
+    let asc = true;
+    th.addEventListener('click', () => {
+      const tbody = th.closest('table').querySelector('tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      // Ignorar linha de estado vazio se existir
+      const dataRows = rows.filter(r => !r.querySelector('.empty-state'));
+      if (dataRows.length === 0) return;
+      
+      dataRows.sort((a, b) => {
+        const va = a.cells[idx]?.textContent.trim() || '';
+        const vb = b.cells[idx]?.textContent.trim() || '';
+        return asc ? va.localeCompare(vb, 'pt') : vb.localeCompare(va, 'pt');
+      });
+      asc = !asc;
+      dataRows.forEach(r => tbody.appendChild(r));
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block titulo %}Pendências — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Pendências de Exclusão{% endblock %}
+
+{% block conteudo %}
+<div style="display:flex; align-items:center;
+            flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+  <a href="{{ url_for('main.dashboard') }}" class="btn btn-back">
+    &#8592; Voltar
+  </a>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <label style="font-size:0.82rem; font-weight:600;">Solicitante:</label>
+    <select onchange="window.location.href=this.value"
+            style="padding:6px 12px; border-radius:6px;
+                   border:1px solid var(--borda,#ddd); font-size:0.85rem;">
+      <option value="{{ url_for('pendencias.index', status=filtro_status) }}">
+        Todos
+      </option>
+      {% for u in usuarios_filtro %}
+      <option value="{{ url_for('pendencias.index',
+                      status=filtro_status, solicitante=u.id) }}"
+        {{ 'selected' if filtro_solicitante == u.id|string }}>
+        {{ u.nome }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+{# ── Abas Pendentes / Resolvidas ── #}
+<div style="display:flex; gap:8px; margin-bottom:16px;">
+  <a href="{{ url_for('pendencias.index', status='pendente') }}"
+     class="btn {% if filtro_status == 'pendente' %}btn-primary{% else %}btn-outline{% endif %}">
+    &#9203; Pendentes
+  </a>
+  <a href="{{ url_for('pendencias.index', status='resolvidas') }}"
+     class="btn {% if filtro_status == 'resolvidas' %}btn-primary{% else %}btn-outline{% endif %}">
+    &#10003; Resolvidas
+  </a>
+</div>
+
+<div class="card table-to-cards">
+  {% if pendentes %}
+  <table>
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Solicitante</th>
+        <th>Tipo</th>
+        <th>Registro</th>
+        <th>Motivo</th>
+        {% if filtro_status == 'resolvidas' %}
+        <th>Resultado</th>
+        {% endif %}
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pendentes %}
+      <tr {% if not p.motivo and filtro_status != 'resolvidas' %}style="background:#fffbeb;"{% endif %}>
+        <td data-label="Data">{{ p.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td data-label="Solicitante">
+          {{ p.usuario_solicitante.nome }}
+          <span style="font-size:0.7rem; padding:1px 6px; border-radius:8px;
+                       font-weight:600; margin-left:4px;
+            {% if p.usuario_solicitante.perfil.nome == 'supervisor' %}
+                       background:#dbeafe; color:#1d4ed8;">supervisor
+            {% elif p.usuario_solicitante.perfil.nome == 'atendente' %}
+                       background:#f3f4f6; color:#6b7280;">atendente
+            {% else %}
+                       background:#dff2ef; color:#0f766e;">admin
+            {% endif %}
+          </span>
+        </td>
+        <td data-label="Tipo">
+          {% if p.entidade == 'cadastro' %}&#128100; Cadastro
+          {% elif p.entidade == 'atendimento' %}&#128222; Atendimento
+          {% else %}&#128203; Solicitação{% endif %}
+        </td>
+        <td data-label="Registro">
+          {{ p.entidade_desc }}
+          {% if p.entidade == 'cadastro' and p.id in impacto %}
+          {% set imp = impacto[p.id] %}
+          <div style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;">
+            {% if imp.atend > 0 %}
+            <span style="font-size:0.72rem; background:#dbeafe; color:#1d4ed8;
+                         padding:2px 8px; border-radius:10px; font-weight:600;">
+              &#128222; {{ imp.atend }} atend.
+            </span>
+            {% endif %}
+            {% if imp.solic > 0 %}
+            <span style="font-size:0.72rem; background:#fef3c7; color:#92400e;
+                         padding:2px 8px; border-radius:10px; font-weight:600;">
+              &#128203; {{ imp.solic }} solic.
+            </span>
+            {% endif %}
+            {% if imp.atend == 0 and imp.solic == 0 %}
+            <span style="font-size:0.72rem; background:#d1fae5; color:#065f46;
+                         padding:2px 8px; border-radius:10px; font-weight:600;">
+              &#10003; Sem vínculos
+            </span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </td>
+        <td data-label="Motivo">{{ p.motivo or '—' }}</td>
+        {% if filtro_status == 'resolvidas' %}
+        <td data-label="Resultado">
+          {% if p.status == 'executada' %}
+            <span style="background:#fee2e2; color:#991b1b; padding:2px 8px;
+                         border-radius:10px; font-size:0.78rem; font-weight:600;">
+              &#128465; Excluído
+            </span>
+          {% elif p.status == 'negada' %}
+            <span style="background:#d1fae5; color:#065f46; padding:2px 8px;
+                         border-radius:10px; font-size:0.78rem; font-weight:600;">
+              &#10003; Negado
+            </span>
+            {% if p.motivo_negacao %}
+            <br><small style="color:var(--texto-suave);">Motivo: {{ p.motivo_negacao }}</small>
+            {% endif %}
+          {% endif %}
+        </td>
+        {% endif %}
+        <td data-label="Ações">
+          <div class="acoes">
+            {# Botão Ver — oculto para registros já excluídos #}
+            {% if p.id in ids_existentes %}
+            {% if p.entidade == 'cadastro' %}
+            <a href="{{ url_for('pessoas.detalhe', id=p.entidade_id) }}"
+               target="_blank" class="btn btn-outline" title="Ver ficha completa">&#128065; Ver</a>
+            {% elif p.entidade == 'atendimento' %}
+            <a href="{{ url_for('atendimentos.detalhe', id=p.entidade_id) }}"
+               target="_blank" class="btn btn-outline" title="Ver atendimento">&#128065; Ver</a>
+            {% elif p.entidade == 'solicitacao' %}
+            <a href="{{ url_for('solicitacoes.detalhe', id=p.entidade_id) }}"
+               target="_blank" class="btn btn-outline" title="Ver solicitação">&#128065; Ver</a>
+            {% endif %}
+            {% endif %}
+
+            {# Botão Reabrir para solicitações negadas #}
+            {% if filtro_status == 'resolvidas' and p.status == 'negada' %}
+            <form method="POST"
+                  action="{{ url_for('pendencias.reabrir', id=p.id) }}"
+                  style="display:inline;">
+              <button type="submit" class="btn btn-outline"
+                      style="font-size:0.78rem;">
+                🔄 Reabrir
+              </button>
+            </form>
+            {% endif %}
+
+            {# Botões de ação apenas para pendentes #}
+            {% if filtro_status != 'resolvidas' %}
+              {% if p.entidade == 'cadastro' and p.id in impacto
+                    and (impacto[p.id].atend > 0 or impacto[p.id].solic > 0) %}
+              <button type="button" class="btn btn-danger-outline"
+                      onclick="confirmarAprovacaoCascata(
+                        {{ p.id }},
+                        '{{ p.entidade_desc | replace("'", "\\'") }}',
+                        '{{ url_for('pendencias.aprovar', id=p.id) }}',
+                        {{ impacto[p.id].atend }},
+                        {{ impacto[p.id].solic }})">
+                &#10003; Aprovar
+              </button>
+              {% else %}
+              <button type="button" class="btn btn-danger-outline"
+                      data-url="{{ url_for('pendencias.aprovar', id=p.id) }}"
+                      data-msg="Aprovar exclusão de {{ p.entidade_desc }}? Esta ação não pode ser desfeita."
+                      data-confirm-label="Confirmar Exclusão"
+                      onclick="confirmarRemocao(this)">
+                &#10003; Aprovar
+              </button>
+              {% endif %}
+              <button type="button" class="btn btn-secondary"
+                      onclick="abrirModalNegar(
+                        {{ p.id }},
+                        '{{ p.entidade_desc | replace("'", "\\'") }}',
+                        '{{ url_for('pendencias.negar', id=p.id) }}')">
+                &#10005; Negar
+              </button>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <div>&#10003;</div>
+    <p>
+      {% if filtro_status == 'resolvidas' %}
+        Nenhuma solicitação resolvida encontrada.
+      {% else %}
+        Nenhuma solicitação de exclusão pendente.
+      {% endif %}
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Modal cascata ── #}
+<div id="modal-cascata" style="display:none; position:fixed;
+     inset:0; background:rgba(0,0,0,0.5); z-index:9999;
+     align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:32px;
+              max-width:480px; width:90%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <p style="font-size:1rem; font-weight:700; color:var(--cor-perigo);
+              margin:0 0 8px;">&#9888;&#65039; Exclusão com impacto em cascata</p>
+    <p id="msg-cascata" style="font-size:0.88rem; margin:0 0 16px;
+       color:var(--texto-principal);"></p>
+    <label style="display:flex; align-items:center; gap:8px;
+                  font-size:0.85rem; margin-bottom:20px; cursor:pointer;">
+      <input type="checkbox" id="ciente-cascata"
+             onchange="document.getElementById('btn-confirmar-cascata').disabled = !this.checked">
+      Estou ciente que todos os registros vinculados serão removidos permanentemente
+    </label>
+    <div style="display:flex; gap:10px;">
+      <form id="form-cascata" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" id="btn-confirmar-cascata"
+                class="btn btn-danger-outline" disabled>
+          Confirmar Exclusão
+        </button>
+      </form>
+      <button type="button" class="btn btn-secondary"
+              onclick="document.getElementById('modal-cascata').style.display='none'">
+        Cancelar
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ── Modal negar ── #}
+<div id="modal-negar" style="display:none; position:fixed;
+     inset:0; background:rgba(0,0,0,0.5); z-index:9999;
+     align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:32px;
+              max-width:440px; width:90%;">
+    <p style="font-size:1rem; font-weight:700; color:var(--cor-primaria);
+              margin:0 0 8px;">Negar exclusão</p>
+    <p id="msg-negar" style="font-size:0.88rem; margin:0 0 16px;
+       color:var(--texto-principal);"></p>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label style="font-size:0.82rem; font-weight:600;">
+        Motivo da negação <span style="color:var(--cor-perigo);">*</span>
+      </label>
+      <select id="motivo-negar" style="width:100%; margin-top:4px;"
+              onchange="document.getElementById('btn-confirmar-negar').disabled = !this.value">
+        <option value="">Selecione o motivo…</option>
+        <option value="Documentação incompleta">Documentação incompleta</option>
+        <option value="Registro ainda necessário">Registro ainda necessário</option>
+        <option value="Solicitação duplicada">Solicitação duplicada</option>
+        <option value="Sem justificativa suficiente">Sem justificativa suficiente</option>
+        <option value="Outro">Outro</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <form id="form-negar" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" id="hidden-motivo-negar" name="motivo_negacao">
+        <button type="submit" id="btn-confirmar-negar"
+                class="btn btn-secondary" disabled>
+          &#10005; Confirmar Negação
+        </button>
+      </form>
+      <button type="button" class="btn btn-outline"
+              onclick="document.getElementById('modal-negar').style.display='none'">
+        Cancelar
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmarAprovacaoCascata(id, nome, url, qtdAtend, qtdSolic) {
+  const partes = [];
+  if (qtdAtend > 0) partes.push(`${qtdAtend} atendimento(s)`);
+  if (qtdSolic > 0) partes.push(`${qtdSolic} solicitação(ões)`);
+  document.getElementById('msg-cascata').innerHTML =
+    `Aprovar a exclusão de <strong>${nome}</strong> irá remover permanentemente
+     também: <strong>${partes.join(' e ')}</strong>.`;
+  document.getElementById('form-cascata').action = url;
+  document.getElementById('ciente-cascata').checked = false;
+  document.getElementById('btn-confirmar-cascata').disabled = true;
+  const modal = document.getElementById('modal-cascata');
+  modal.style.display = 'flex';
+  modal.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
+}
+
+function abrirModalNegar(id, nome, url) {
+  document.getElementById('msg-negar').textContent =
+    `Negar a exclusão de "${nome}". O solicitante será informado do motivo.`;
+  document.getElementById('form-negar').action = url;
+  document.getElementById('motivo-negar').value = '';
+  document.getElementById('btn-confirmar-negar').disabled = true;
+  document.getElementById('motivo-negar').onchange = function() {
+    document.getElementById('hidden-motivo-negar').value = this.value;
+    document.getElementById('btn-confirmar-negar').disabled = !this.value;
+  };
+  const modal = document.getElementById('modal-negar');
+  modal.style.display = 'flex';
+  modal.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
+}
+</script>
+{% endblock %}

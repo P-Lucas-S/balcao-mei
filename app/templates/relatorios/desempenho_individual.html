@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block titulo %}Perfil — {{ usuario.nome }} — {{ marca.APP_NOME }}{% endblock %}
+{% block titulo_pagina %}Desempenho Individual{% endblock %}
+
+{% block conteudo %}
+
+{# ── Cabeçalho ── #}
+<div class="toolbar" style="margin-bottom:24px; align-items:flex-start;">
+  <div>
+    <p style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 4px;">
+      Desempenho Individual
+    </p>
+    <h1 style="font-size:1.8rem; font-weight:700; color:var(--texto-principal); margin:0;">
+      {{ usuario.nome }}
+    </h1>
+    <p style="font-size:0.85rem; color:var(--texto-secundario); margin:4px 0 0;">
+      {{ filtros.data_inicio.strftime('%d/%m/%Y') }} a
+      {{ filtros.data_fim.strftime('%d/%m/%Y') }}
+    </p>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <a href="{{ url_for('relatorios.exportar_desempenho_individual',
+             usuario_id=usuario.id,
+             data_inicio=filtros.data_inicio.strftime('%Y-%m-%d'),
+             data_fim=filtros.data_fim.strftime('%Y-%m-%d')) }}"
+       target="_blank"
+       class="btn btn-danger-outline">&#128196; PDF</a>
+    <a href="{{ url_for('relatorios.exportar_desempenho_individual',
+             usuario_id=usuario.id,
+             data_inicio=filtros.data_inicio.strftime('%Y-%m-%d'),
+             data_fim=filtros.data_fim.strftime('%Y-%m-%d'),
+             formato='xlsx') }}"
+       class="btn btn-outline"
+       style="color:var(--cor-sucesso); border-color:var(--cor-sucesso);">&#128202; Excel</a>
+    {% if pode_ver_todos %}
+    <a href="{{ url_for('relatorios.desempenho',
+             data_inicio=filtros.data_inicio, data_fim=filtros.data_fim) }}"
+       class="btn btn-secondary">&#8592; Voltar</a>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Card de total + filtro de datas ── #}
+<div style="display:grid; grid-template-columns:200px 1fr; gap:20px; margin-bottom:24px;">
+  <div class="card" style="padding:24px; text-align:center;">
+    <p style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0 0 8px;">
+      Total de Atendimentos
+    </p>
+    <p style="font-size:3rem; font-weight:800; color:var(--cor-primaria);
+              line-height:1; margin:0;">{{ total }}</p>
+    <p style="font-size:0.78rem; color:var(--texto-suave); margin:6px 0 0;">
+      no período
+    </p>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <form method="GET" action="{{ url_for('relatorios.desempenho_individual', usuario_id=usuario.id) }}"
+          style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; height:100%;">
+      <div class="form-group" style="margin:0;">
+        <label>Data Início</label>
+        <input type="date" name="data_inicio" value="{{ filtros.data_inicio.strftime('%Y-%m-%d') }}">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Data Fim</label>
+        <input type="date" name="data_fim" value="{{ filtros.data_fim.strftime('%Y-%m-%d') }}">
+      </div>
+      <button type="submit" class="btn btn-primary">&#128269; Filtrar</button>
+      <a href="{{ url_for('relatorios.desempenho_individual', usuario_id=usuario.id) }}"
+         class="btn btn-secondary">&#10005;</a>
+    </form>
+  </div>
+</div>
+
+{# ── Gráfico de barras por dia ── #}
+<div class="card" style="padding:24px; margin-bottom:24px;">
+  <p style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+            letter-spacing:1px; color:var(--texto-suave); margin:0 0 16px;">
+    Atendimentos por Dia
+  </p>
+  {% if totais_dia %}
+  <canvas id="grafico-dias" style="max-height:260px;"></canvas>
+  {% else %}
+  <p style="color:var(--texto-suave); font-size:0.88rem; text-align:center; padding:32px 0;">
+    Nenhum dado disponível para o período.
+  </p>
+  {% endif %}
+</div>
+
+{# ── Tipos mais realizados ── #}
+{% if tipos %}
+<div class="card" style="padding:24px; margin-bottom:24px;">
+  <p style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+            letter-spacing:1px; color:var(--texto-suave); margin:0 0 16px;">
+    Tipos Mais Realizados
+  </p>
+  {% set max_total = tipos[0].total %}
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:14px;">
+    {% for t in tipos %}
+    <div style="background:var(--bg-pagina); border-radius:var(--radius);
+                padding:16px; border:1px solid var(--borda-suave);">
+      <p style="font-size:0.82rem; font-weight:600; color:var(--texto-principal);
+                margin:0 0 8px; line-height:1.3;">{{ t.tipo_descricao }}</p>
+      <p style="font-size:1.8rem; font-weight:800; color:var(--cor-primaria);
+                line-height:1; margin:0 0 10px;">{{ t.total }}</p>
+      <div style="height:6px; border-radius:3px; background:var(--borda);overflow:hidden;">
+        <div style="height:100%; border-radius:3px; background:var(--cor-primaria);
+                    width:{{ ((t.total / max_total) * 100)|int }}%;"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Lista detalhada de atendimentos ── #}
+<div class="card" style="overflow:hidden;">
+  <div style="padding:16px 20px; border-bottom:1px solid var(--borda-suave);">
+    <p style="font-size:0.72rem; font-weight:700; text-transform:uppercase;
+              letter-spacing:1px; color:var(--texto-suave); margin:0;">
+      Atendimentos Detalhados
+    </p>
+  </div>
+  {% if atendimentos %}
+  <table>
+    <thead>
+      <tr>
+        <th style="padding-left:20px;">Nº</th>
+        <th>Data</th>
+        <th>Hora</th>
+        <th>Cidadão</th>
+        <th>Observação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in atendimentos %}
+      <tr>
+        <td style="color:var(--texto-suave); font-size:0.8rem; padding-left:20px;">
+          {{ a.id }}
+        </td>
+        <td>{{ a.data_atendimento.strftime('%d/%m/%Y') if a.data_atendimento else '—' }}</td>
+        <td style="color:var(--texto-secundario);">
+          {{ a.hora_atendimento.strftime('%H:%M') if a.hora_atendimento else '—' }}
+        </td>
+        <td>{{ a.pessoa_nome or '—' }}</td>
+        <td style="color:var(--texto-secundario); font-size:0.85rem;">
+          {{ (a.observacoes or '—')[:80] }}{% if a.observacoes and a.observacoes|length > 80 %}…{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <div>&#128222;</div>
+    <p>Nenhum atendimento no período.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{% if totais_dia %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const dadosDia = {{ totais_dia | tojson }};
+const labels = dadosDia.map(d => {
+  const dt = new Date(d.data);
+  const dia = String(dt.getUTCDate()).padStart(2, '0');
+  const mes = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  return `${dia}/${mes}`;
+});
+const valores  = dadosDia.map(d => d.total);
+
+new Chart(document.getElementById('grafico-dias'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [{
+      label: 'Atendimentos',
+      data: valores,
+      backgroundColor: '#0f4c5c',
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1 } }
+    }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}
