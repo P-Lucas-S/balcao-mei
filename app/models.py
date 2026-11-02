@@ -128,7 +128,7 @@ class Pessoa(db.Model):
 
         NÃO usar em relatórios, análise ou estatísticas: lá o cadastro
         removido continua contando, porque o atendimento aconteceu e o
-        trabalho da Sala não é apagado quando o empreendedor exerce direito
+        trabalho do balcão não é apagado quando o empreendedor exerce direito
         de exclusão. Ver `02_REGRAS_DE_NEGOCIO.md`.
         """
         return cls.query.filter(cls.removido_em.is_(None))

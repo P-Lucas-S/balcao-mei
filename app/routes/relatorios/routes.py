@@ -111,7 +111,8 @@ def _filtros_from_request():
 
     hoje = date.today()
     if not data_inicio:
-        data_inicio = hoje.replace(day=1)
+        from ...periodo import inicio_padrao
+        data_inicio = inicio_padrao(hoje)
     if not data_fim:
         data_fim = hoje
 

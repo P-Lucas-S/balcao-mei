@@ -16,6 +16,16 @@ Sistema web para registrar e conduzir atendimentos presenciais a microempreended
 
 Os dados são gerados a cada inicialização (cerca de 400 cadastros e 850 atendimentos nos últimos 16 meses) e qualquer alteração feita na demo é descartada no próximo reinício. No plano gratuito do Render o serviço hiberna após 15 minutos sem acesso; o primeiro carregamento pode levar cerca de um minuto.
 
+
+### Telas
+
+| | |
+|---|---|
+| ![Dashboard](docs/img/02-dashboard.png) | ![Atendimento guiado](docs/img/03-atendimento-guiado.png) |
+| **Dashboard** — indicadores do mês e alerta de solicitações paradas | **Atendimento guiado** — serviços filtrados pelo perfil do cliente |
+| ![Jornada do empreendedor](docs/img/04-jornada.png) | ![Login da demo](docs/img/01-login.png) |
+| **Análise** — retorno, funil de conversão e tempo até a 2ª visita | **Login da demo** — acesso direto pelos perfis |
+
 ---
 
 ## Funcionalidades

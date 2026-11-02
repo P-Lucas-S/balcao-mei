@@ -29,14 +29,15 @@ def _get_param(chave, default='0'):
 
 
 def _periodo_from_request():
+    from ..periodo import inicio_padrao
     hoje = date.today()
     data_inicio = request.args.get('data_inicio')
     data_fim    = request.args.get('data_fim')
     try:
-        data_inicio = date.fromisoformat(data_inicio) if data_inicio else hoje.replace(day=1)
+        data_inicio = date.fromisoformat(data_inicio) if data_inicio else inicio_padrao(hoje)
         data_fim    = date.fromisoformat(data_fim)    if data_fim    else hoje
     except ValueError:
-        data_inicio = hoje.replace(day=1)
+        data_inicio = inicio_padrao(hoje)
         data_fim    = hoje
     if data_inicio > data_fim:
         data_inicio, data_fim = data_fim, data_inicio
@@ -190,7 +191,7 @@ def _insights(data_inicio, data_fim, kpis):
 
     if kpis['unicos'] > 0:
         insights.append(
-            f"A Sala atendeu {kpis['unicos']} empreendedor(es) único(s) no período."
+            f"O balcão atendeu {kpis['unicos']} empreendedor(es) único(s) no período."
         )
 
     if kpis['cobertura'] is not None:
