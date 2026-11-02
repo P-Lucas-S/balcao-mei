@@ -4,7 +4,7 @@ Gera dados fictícios de demonstração para o Balcão MEI:
   400 pessoas, ~800 atendimentos, 250 solicitações,
   220+ logs, 60 requerimentos, 2 parâmetros municipais.
 
-Distribuídos de jan/2025 a mai/2026 com sazonalidade realista.
+Distribuídos nos ~16 meses anteriores à data de execução, com sazonalidade realista.
 Idempotente: limpa dados fictícios antes de cada execução.
 
 Uso:
@@ -30,8 +30,8 @@ from app.models import (
 
 # ── Configuração ───────────────────────────────────────────────────────────────
 SEED              = 42
-DATA_INICIO       = date(2025, 1, 2)
-DATA_FIM          = date(2026, 5, 9)
+DATA_FIM          = date.today()
+DATA_INICIO       = DATA_FIM - timedelta(days=490)   # ~16 meses de histórico
 LOTE              = 50
 META_PESSOAS      = 400
 META_ATENDIMENTOS = 800

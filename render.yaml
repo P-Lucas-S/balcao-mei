@@ -1,0 +1,22 @@
+# Demonstração pública no Render (plano gratuito).
+# O banco é SQLite com dados fictícios, recriado a cada deploy/reinício:
+# qualquer alteração feita por visitantes some na próxima inicialização.
+services:
+  - type: web
+    name: balcao-mei
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python scripts/bootstrap_demo.py
+    startCommand: python scripts/bootstrap_demo.py && gunicorn run:app --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /login
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: APP_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "1"
+      - key: DATABASE_URL
+        value: sqlite:///demo.db
+      - key: SECRET_KEY
+        generateValue: true

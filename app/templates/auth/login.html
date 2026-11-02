@@ -34,6 +34,28 @@
       {% endif %}
       {% endwith %}
 
+      {% if config.DEMO_MODE %}
+      <div style="border:1px solid #cfe3df; background:#f2f8f7; border-radius:8px;
+                  padding:12px 14px; margin:-12px 0 20px; font-size:0.82rem; color:#24443f;">
+        <strong>Demonstração com dados fictícios.</strong> Entre com um dos perfis
+        (senha <code>demo1234</code>):
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+          {% for lg, rotulo in [('admin', 'Administrador'), ('supervisor', 'Supervisor'), ('atendente', 'Atendente')] %}
+          <button type="button" onclick="entrarDemo('{{ lg }}')"
+                  style="border:1px solid #0f4c5c; background:#fff; color:#0f4c5c; border-radius:6px;
+                         padding:6px 10px; font-size:0.80rem; cursor:pointer;">{{ rotulo }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      <script>
+        function entrarDemo(lg) {
+          document.getElementById('login').value = lg;
+          document.getElementById('senha').value = 'demo1234';
+          document.getElementById('form-login').submit();
+        }
+      </script>
+      {% endif %}
+
       <form method="POST" id="form-login">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">

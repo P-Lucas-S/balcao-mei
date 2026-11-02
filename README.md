@@ -4,6 +4,18 @@ Sistema web para registrar e conduzir atendimentos presenciais a microempreended
 
 > **Demonstração.** A organização ("Central do Empreendedor"), a cidade padrão e todos os dados são fictícios. Nome, organização, cidade e área do mapa são configuráveis por variável de ambiente (veja abaixo).
 
+## Demo online
+
+**[balcao-mei.onrender.com](https://balcao-mei.onrender.com)** — entre com um dos perfis pelos botões da tela de login (senha `demo1234`):
+
+| Perfil | Login | O que vê |
+|---|---|---|
+| Administrador | `admin` | tudo, incluindo log de auditoria e gestão de equipes |
+| Supervisor | `supervisor` | atendimentos e relatórios da própria equipe |
+| Atendente | `atendente` | os próprios atendimentos e solicitações |
+
+Os dados são gerados a cada inicialização (cerca de 400 cadastros e 850 atendimentos nos últimos 16 meses) e qualquer alteração feita na demo é descartada no próximo reinício. No plano gratuito do Render o serviço hiberna após 15 minutos sem acesso; o primeiro carregamento pode levar cerca de um minuto.
+
 ---
 
 ## Funcionalidades
@@ -51,6 +63,14 @@ psql -U postgres -c "CREATE DATABASE sistema_solicitacoes;"
 python -c "from app import create_app, db; app = create_app(); app.app_context().push(); db.create_all()"
 
 python -X utf8 scripts/gerar_dados_ficticios.py   # popula o banco com dados de demonstração
+python run.py
+```
+
+### Rodar como a demo (SQLite, sem PostgreSQL)
+
+```bash
+export DATABASE_URL=sqlite:///demo.db DEMO_MODE=1
+python scripts/bootstrap_demo.py   # cria tabelas, tabelas de apoio, usuários de demonstração e dados fictícios
 python run.py
 ```
 

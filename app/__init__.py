@@ -16,6 +16,23 @@ limiter       = Limiter(get_remote_address, default_limits=["200 per day", "50 p
 cache         = Cache()
 
 
+def _registrar_funcoes_sqlite(app):
+    """SQLite não tem regexp_replace (usado na busca por CPF/CNPJ só com dígitos)."""
+    import re
+    from sqlalchemy import event
+
+    def _regexp_replace(valor, padrao, subst, flags=None):
+        if valor is None:
+            return None
+        return re.sub(padrao, subst, valor)
+
+    with app.app_context():
+        @event.listens_for(db.engine, 'connect')
+        def _on_connect(dbapi_conn, _):
+            dbapi_conn.create_function('regexp_replace', 4, _regexp_replace)
+            dbapi_conn.create_function('regexp_replace', 3, _regexp_replace)
+
+
 def create_app(test_config=None):
     app = Flask(__name__)
 
@@ -30,7 +47,8 @@ def create_app(test_config=None):
 
     # Performance e pool de conexões (setdefault não sobrescreve se test_config já definiu)
     app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
-    app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {
+    _is_sqlite = app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite')
+    app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {} if _is_sqlite else {
         'pool_size':    5,
         'max_overflow': 10,
         'pool_recycle': 3600,
@@ -51,6 +69,8 @@ def create_app(test_config=None):
         'CACHE_DEFAULT_TIMEOUT': 300,
     })
     db.init_app(app)
+    if _is_sqlite:
+        _registrar_funcoes_sqlite(app)
     csrf.init_app(app)
     limiter.init_app(app)
     cache.init_app(app)
